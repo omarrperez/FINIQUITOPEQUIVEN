@@ -10,19 +10,25 @@ import {
   TrendingUp,
   Scale,
   DollarSign,
+  AlertCircle,
 } from 'lucide-react';
 import { ParametrosMaestros, TabuladorCargo, TasaBCV } from '../types/settlement';
 import { formatBs } from '../utils/calculator';
 import { secureStorage } from '../db/secureStorage';
+import { BCVSyncState } from '../utils/bcvService';
 
 interface MasterParametersViewProps {
   parametros: ParametrosMaestros;
   onUpdateParametros: (params: ParametrosMaestros) => void;
+  onSyncLiveBCV: () => Promise<ParametrosMaestros | null>;
+  bcvSyncState: BCVSyncState;
 }
 
 export const MasterParametersView: React.FC<MasterParametersViewProps> = ({
   parametros,
   onUpdateParametros,
+  onSyncLiveBCV,
+  bcvSyncState,
 }) => {
   const [salarioMinimo, setSalarioMinimo] = useState(parametros.salarioMinimoUrbano);
   const [diasUtilidades, setDiasUtilidades] = useState(parametros.diasUtilidadesCCP);
@@ -33,7 +39,6 @@ export const MasterParametersView: React.FC<MasterParametersViewProps> = ({
   const [tabulador, setTabulador] = useState<TabuladorCargo[]>(parametros.tabuladorCargos);
   const [tasasBCV, setTasasBCV] = useState<TasaBCV[]>(parametros.tasasBCV);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [syncingBCV, setSyncingBCV] = useState(false);
 
   // New Cargo form state
   const [newCodigo, setNewCodigo] = useState('');
@@ -53,18 +58,20 @@ export const MasterParametersView: React.FC<MasterParametersViewProps> = ({
       tasasBCV: tasasBCV,
     };
     secureStorage.saveParametros(updated);
+    secureStorage.recalcularTodosExpedientes(updated);
     onUpdateParametros(updated);
     setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 2500);
+    setTimeout(() => setSaveSuccess(false), 3000);
   };
 
   const handleResetDefaults = () => {
-    if (window.confirm('¿Restaurar los parámetros y tabuladores a los valores oficiales por defecto?')) {
+    if (window.confirm('¿Restaurar los parámetros, tabuladores y expedientes a los valores oficiales por defecto (Tasa BCV 904,4485 Bs/USD)?')) {
       secureStorage.resetToDefault();
       const def = secureStorage.getParametros();
       setSalarioMinimo(def.salarioMinimoUrbano);
       setDiasUtilidades(def.diasUtilidadesCCP);
       setDiasBonoVacacional(def.diasBonoVacacionalCCP);
+      setDiasVacacionesAnuales(def.diasVacacionesAnualesCCP);
       setDiasFiniquito(def.diasBonificacionFiniquitoCCP);
       setTasaUSD(def.tasaCambioBCV_USD);
       setTabulador(def.tabuladorCargos);
@@ -73,21 +80,14 @@ export const MasterParametersView: React.FC<MasterParametersViewProps> = ({
     }
   };
 
-  const handleSyncBCV = () => {
-    setSyncingBCV(true);
-    setTimeout(() => {
-      // Simulate live BCV update
-      setTasaUSD(67.45);
-      const updatedTasas = tasasBCV.map((t) => ({
-        ...t,
-        tasaActiva: +(t.tasaActiva * (1 + (Math.random() * 0.02 - 0.01))).toFixed(2),
-        tasaPromedio: +(t.tasaPromedio * (1 + (Math.random() * 0.02 - 0.01))).toFixed(2),
-      }));
-      setTasasBCV(updatedTasas);
-      setSyncingBCV(false);
+  const handleSyncBCV = async () => {
+    const updatedParams = await onSyncLiveBCV();
+    if (updatedParams) {
+      setTasaUSD(updatedParams.tasaCambioBCV_USD);
+      setTabulador(updatedParams.tabuladorCargos);
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 2500);
-    }, 1000);
+      setTimeout(() => setSaveSuccess(false), 4000);
+    }
   };
 
   const handleUpdateSalarioCargo = (id: string, val: number) => {
@@ -135,7 +135,7 @@ export const MasterParametersView: React.FC<MasterParametersViewProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={handleResetDefaults}
             className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors shadow-2xs"
@@ -146,11 +146,11 @@ export const MasterParametersView: React.FC<MasterParametersViewProps> = ({
 
           <button
             onClick={handleSyncBCV}
-            disabled={syncingBCV}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors shadow-2xs"
+            disabled={bcvSyncState.loading}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:bg-amber-400 transition-colors shadow-xs"
           >
-            <RefreshCw className={`w-3.5 h-3.5 text-blue-600 ${syncingBCV ? 'animate-spin' : ''}`} />
-            <span>{syncingBCV ? 'Sincronizando...' : 'Sincronizar Tasas BCV'}</span>
+            <RefreshCw className={`w-3.5 h-3.5 ${bcvSyncState.loading ? 'animate-spin' : ''}`} />
+            <span>{bcvSyncState.loading ? 'Consultando API BCV...' : 'Dólar BCV del Día (API)'}</span>
           </button>
 
           <button
@@ -164,9 +164,25 @@ export const MasterParametersView: React.FC<MasterParametersViewProps> = ({
       </div>
 
       {saveSuccess && (
-        <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-lg flex items-center gap-2 text-xs font-semibold text-emerald-900">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-          <span>Parámetros maestros actualizados y guardados satisfactoriamente en la base de datos segura.</span>
+        <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-semibold text-emerald-900">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>
+              Parámetros maestros actualizados (Tasa BCV: Bs. {formatBs(tasaUSD, 4)} / USD) y todos los expedientes recalculados satisfactoriamente.
+            </span>
+          </div>
+          {bcvSyncState.lastSource && (
+            <span className="text-2xs font-mono text-emerald-700">
+              Fuente: {bcvSyncState.lastSource}
+            </span>
+          )}
+        </div>
+      )}
+
+      {bcvSyncState.error && (
+        <div className="p-3 bg-red-50 border border-red-300 rounded-lg flex items-center gap-2 text-xs font-semibold text-red-900">
+          <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+          <span>{bcvSyncState.error}</span>
         </div>
       )}
 
@@ -260,7 +276,7 @@ export const MasterParametersView: React.FC<MasterParametersViewProps> = ({
             </label>
             <input
               type="number"
-              step="0.01"
+              step="0.0001"
               value={tasaUSD}
               onChange={(e) => setTasaUSD(parseFloat(e.target.value) || 0)}
               className="w-full text-sm font-mono font-bold text-blue-900 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-600 focus:outline-hidden"
@@ -399,10 +415,10 @@ export const MasterParametersView: React.FC<MasterParametersViewProps> = ({
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase text-2xs">
               <tr>
-                <th className="py-2.5 px-4 w-36">Mes / Período</th>
-                <th className="py-2.5 px-4 text-right">Tasa Activa Anual (%)</th>
-                <th className="py-2.5 px-4 text-right">Tasa Promedio Anual (%)</th>
-                <th className="py-2.5 px-4 text-center">Tasa Mensual Efectiva Activa</th>
+                <th className="py-2.5 px-4 w-56">Mes / Gaceta Oficial</th>
+                <th className="py-2.5 px-4 text-right">Promedio Activa/Pasiva BCV (Art. 143 %)</th>
+                <th className="py-2.5 px-4 text-right">Tasa Activa Ref. Mora (%)</th>
+                <th className="py-2.5 px-4 text-center">Tasa Mensual Efectiva Art. 143</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-mono">
@@ -415,11 +431,11 @@ export const MasterParametersView: React.FC<MasterParametersViewProps> = ({
                     <input
                       type="number"
                       step="0.01"
-                      value={tasa.tasaActiva}
+                      value={tasa.tasaPromedio}
                       onChange={(e) =>
-                        handleUpdateTasaBCV(tasa.id, 'tasaActiva', parseFloat(e.target.value) || 0)
+                        handleUpdateTasaBCV(tasa.id, 'tasaPromedio', parseFloat(e.target.value) || 0)
                       }
-                      className="w-24 text-right border border-slate-300 rounded px-2 py-0.5 text-xs font-mono font-semibold text-slate-900 focus:ring-1 focus:ring-blue-600 focus:outline-hidden"
+                      className="w-24 text-right border border-slate-300 rounded px-2 py-0.5 text-xs font-mono font-bold text-blue-900 focus:ring-1 focus:ring-blue-600 focus:outline-hidden"
                     />
                     <span className="text-slate-500 ml-1">%</span>
                   </td>
@@ -427,16 +443,16 @@ export const MasterParametersView: React.FC<MasterParametersViewProps> = ({
                     <input
                       type="number"
                       step="0.01"
-                      value={tasa.tasaPromedio}
+                      value={tasa.tasaActiva}
                       onChange={(e) =>
-                        handleUpdateTasaBCV(tasa.id, 'tasaPromedio', parseFloat(e.target.value) || 0)
+                        handleUpdateTasaBCV(tasa.id, 'tasaActiva', parseFloat(e.target.value) || 0)
                       }
                       className="w-24 text-right border border-slate-300 rounded px-2 py-0.5 text-xs font-mono text-slate-700 focus:ring-1 focus:ring-blue-600 focus:outline-hidden"
                     />
                     <span className="text-slate-500 ml-1">%</span>
                   </td>
-                  <td className="py-2 px-4 text-center text-slate-600">
-                    {((tasa.tasaActiva / 12)).toFixed(3)}% mensual
+                  <td className="py-2 px-4 text-center text-emerald-700 font-semibold">
+                    {(((tasa.tasaPromedio || tasa.tasaActiva) / 12)).toFixed(3)}% mensual
                   </td>
                 </tr>
               ))}

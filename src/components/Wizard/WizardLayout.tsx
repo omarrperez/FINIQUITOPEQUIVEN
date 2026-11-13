@@ -15,6 +15,7 @@ import {
   AlertCircle,
   HelpCircle,
   Info,
+  Loader2,
 } from 'lucide-react';
 import {
   Contratista,
@@ -30,11 +31,10 @@ import {
   calcularLiquidacion,
   formatBs,
   round2,
+  TASA_BCV_OFICIAL_DEFAULT,
 } from '../../utils/calculator';
-import {
-  EXPEDIENTE_OFICIAL_CARLOS,
-  EXPEDIENTE_SUPEROCTANOS_JOSE,
-} from '../../db/defaultData';
+import { EXPEDIENTES_CRISBAORCA_LIST } from '../../db/defaultData';
+import { BCVSyncState } from '../../utils/bcvService';
 
 interface WizardLayoutProps {
   contratistas: Contratista[];
@@ -42,6 +42,8 @@ interface WizardLayoutProps {
   onSaveExpediente: (expediente: ExpedienteLiquidacion) => void;
   onViewReceipt: (expediente: ExpedienteLiquidacion) => void;
   expedienteParaEditar?: ExpedienteLiquidacion | null;
+  onSyncLiveBCV: () => Promise<ParametrosMaestros | null>;
+  bcvSyncState: BCVSyncState;
 }
 
 export const WizardLayout: React.FC<WizardLayoutProps> = ({
@@ -50,60 +52,73 @@ export const WizardLayout: React.FC<WizardLayoutProps> = ({
   onSaveExpediente,
   onViewReceipt,
   expedienteParaEditar,
+  onSyncLiveBCV,
+  bcvSyncState,
 }) => {
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
+  const tasaActual = parametros.tasaCambioBCV_USD || TASA_BCV_OFICIAL_DEFAULT;
+  const defaultContratista = contratistas[0];
 
   // Step 1: Contratista & Contrato
   const [selectedContratistaId, setSelectedContratistaId] = useState<string>(
-    expedienteParaEditar?.contratista.id || contratistas[0]?.id || ''
+    expedienteParaEditar?.contratista.id || defaultContratista?.id || ''
   );
   const [razonSocial, setRazonSocial] = useState(
-    expedienteParaEditar?.contratista.razonSocial || contratistas[0]?.razonSocial || ''
+    expedienteParaEditar?.contratista.razonSocial || defaultContratista?.razonSocial || 'CRISBAORCA 2009, C.A.'
   );
   const [rif, setRif] = useState(
-    expedienteParaEditar?.contratista.rif || contratistas[0]?.rif || ''
+    expedienteParaEditar?.contratista.rif || defaultContratista?.rif || 'J-29711947-7'
+  );
+  const [direccion, setDireccion] = useState(
+    expedienteParaEditar?.contratista.direccion ||
+      defaultContratista?.direccion ||
+      'AV. VIA HOSPITAL RASETTI, BARCELONA, ANZOATEGUI'
   );
   const [numeroContrato, setNumeroContrato] = useState(
-    expedienteParaEditar?.contratista.numeroContrato || contratistas[0]?.numeroContrato || ''
+    expedienteParaEditar?.contratista.numeroContrato || defaultContratista?.numeroContrato || 'ORNAMENTO SUPEROCTANOS'
   );
   const [obraServicio, setObraServicio] = useState(
-    expedienteParaEditar?.contratista.obraServicio || contratistas[0]?.obraServicio || ''
+    expedienteParaEditar?.contratista.obraServicio ||
+      defaultContratista?.obraServicio ||
+      'ORNAMENTO EN LA PLANTA DE SUPEROCTANOS C.A.'
   );
   const [complejo, setComplejo] = useState(
-    expedienteParaEditar?.contratista.complejo || contratistas[0]?.complejo || ''
+    expedienteParaEditar?.contratista.complejo ||
+      defaultContratista?.complejo ||
+      'Planta de Superoctanos C.A. (Complejo Industrial José Antonio Anzoátegui)'
   );
   const [clientePrincipal, setClientePrincipal] = useState<Contratista['clientePrincipal']>(
-    expedienteParaEditar?.contratista.clientePrincipal || 'Pequiven'
+    expedienteParaEditar?.contratista.clientePrincipal || defaultContratista?.clientePrincipal || 'Superoctanos C.A.'
   );
 
   // Step 2: Trabajador & Régimen CCP
-  const [cedula, setCedula] = useState(expedienteParaEditar?.trabajador.cedula || 'V-16.789.012');
-  const [nombres, setNombres] = useState(expedienteParaEditar?.trabajador.nombres || 'CARLOS EDUARDO');
-  const [apellidos, setApellidos] = useState(expedienteParaEditar?.trabajador.apellidos || 'MENDOZA PÉREZ');
+  const [cedula, setCedula] = useState(expedienteParaEditar?.trabajador.cedula || '');
+  const [nombres, setNombres] = useState(expedienteParaEditar?.trabajador.nombres || '');
+  const [apellidos, setApellidos] = useState(expedienteParaEditar?.trabajador.apellidos || '');
   const [selectedCargoId, setSelectedCargoId] = useState(
-    expedienteParaEditar?.trabajador.cargoId || 'cargo-4'
+    expedienteParaEditar?.trabajador.cargoId || parametros.tabuladorCargos[0]?.id || 'cargo-sisdem-obrero'
   );
 
   // Bimonetary controls
   const [monedaEntrada, setMonedaEntrada] = useState<MonedaEntrada>(
-    expedienteParaEditar?.trabajador.monedaEntrada || 'BS'
+    expedienteParaEditar?.trabajador.monedaEntrada || 'USD'
   );
   const [salarioMensualUSD, setSalarioMensualUSD] = useState<number>(
-    expedienteParaEditar?.trabajador.salarioMensualUSD || 420.0
+    expedienteParaEditar?.trabajador.salarioMensualUSD ?? 420.0
   );
 
   const [salarioBasico, setSalarioBasico] = useState<number>(
-    expedienteParaEditar?.trabajador.salarioBasicoDiario || 450.0
+    expedienteParaEditar?.trabajador.salarioBasicoDiario ?? round2((420.0 / 30) * tasaActual)
   );
   const [cargoNombre, setCargoNombre] = useState(
-    expedienteParaEditar?.trabajador.cargoNombre || 'MECÁNICO DE MANTENIMIENTO INDUSTRIAL (Tabulador CCP - Nivel 4)'
+    expedienteParaEditar?.trabajador.cargoNombre || parametros.tabuladorCargos[0]?.denominacion || 'OBRERO SISDEM'
   );
-  const [nivelCCP, setNivelCCP] = useState(expedienteParaEditar?.trabajador.nivelCCP || 4);
+  const [nivelCCP, setNivelCCP] = useState(expedienteParaEditar?.trabajador.nivelCCP || 1);
   const [turnoGuardia, setTurnoGuardia] = useState<TurnoGuardia>(
     expedienteParaEditar?.trabajador.turnoGuardia || '5x2'
   );
   const [tiempoViaje, setTiempoViaje] = useState<number>(
-    expedienteParaEditar?.trabajador.tiempoViajeDiario || 70.0
+    expedienteParaEditar?.trabajador.tiempoViajeDiario || 0.0
   );
   const [otrasPrimas, setOtrasPrimas] = useState<number>(
     expedienteParaEditar?.trabajador.otrasPrimasRegularesDiarias || 0.0
@@ -117,19 +132,19 @@ export const WizardLayout: React.FC<WizardLayoutProps> = ({
 
   // Step 3: Cronología & Fechas
   const [fechaIngreso, setFechaIngreso] = useState(
-    expedienteParaEditar?.trabajador.fechaIngreso || '2026-01-15'
+    expedienteParaEditar?.trabajador.fechaIngreso || '2026-08-03'
   );
   const [fechaEgreso, setFechaEgreso] = useState(
-    expedienteParaEditar?.trabajador.fechaEgreso || '2026-11-11'
+    expedienteParaEditar?.trabajador.fechaEgreso || '2026-11-24'
   );
   const [causaEgreso, setCausaEgreso] = useState<TrabajadorFicha['causaEgreso']>(
     expedienteParaEditar?.trabajador.causaEgreso || 'Culminación de Contrato (Fin de Obra)'
   );
   const [fechaPuestaDisposicion, setFechaPuestaDisposicion] = useState(
-    expedienteParaEditar?.trabajador.fechaPuestaDisposicion || '2026-11-14'
+    expedienteParaEditar?.trabajador.fechaPuestaDisposicion || '2026-11-28'
   );
 
-  // New Gemin / Sector rules
+  // Criterios legales
   const [escenarioCalculo, setEscenarioCalculo] = useState<EscenarioCalculoCCP>(
     expedienteParaEditar?.trabajador.escenarioCalculo || 'amplio_ccp'
   );
@@ -147,6 +162,7 @@ export const WizardLayout: React.FC<WizardLayoutProps> = ({
     if (c) {
       setRazonSocial(c.razonSocial);
       setRif(c.rif);
+      setDireccion(c.direccion || '');
       setNumeroContrato(c.numeroContrato);
       setObraServicio(c.obraServicio);
       setComplejo(c.complejo);
@@ -158,28 +174,29 @@ export const WizardLayout: React.FC<WizardLayoutProps> = ({
   const handleCargoSelect = (id: string) => {
     setSelectedCargoId(id);
     const cargo = parametros.tabuladorCargos.find((item) => item.id === id);
+    const tasa = parametros.tasaCambioBCV_USD || TASA_BCV_OFICIAL_DEFAULT;
     if (cargo) {
       setCargoNombre(`${cargo.denominacion} (Tabulador CCP - Nivel ${cargo.nivel})`);
       setSalarioBasico(cargo.salarioBasicoDiario);
       setNivelCCP(cargo.nivel);
-      if (monedaEntrada === 'USD') {
-        const usdVal = round2((cargo.salarioBasicoDiario * 30) / (parametros.tasaCambioBCV_USD || 66.80));
-        setSalarioMensualUSD(usdVal);
-      }
+      const usdVal = round2((cargo.salarioBasicoDiario * 30) / tasa);
+      setSalarioMensualUSD(usdVal);
     }
   };
 
   // Handle USD salary change
   const handleSalarioUSDChange = (val: number) => {
     setSalarioMensualUSD(val);
-    const bsDiario = round2((val / 30) * (parametros.tasaCambioBCV_USD || 66.80));
+    const tasa = parametros.tasaCambioBCV_USD || TASA_BCV_OFICIAL_DEFAULT;
+    const bsDiario = round2((val / 30) * tasa);
     setSalarioBasico(bsDiario);
   };
 
   // Handle Bs. salary change
   const handleSalarioBsChange = (val: number) => {
     setSalarioBasico(val);
-    const usdVal = round2((val * 30) / (parametros.tasaCambioBCV_USD || 66.80));
+    const tasa = parametros.tasaCambioBCV_USD || TASA_BCV_OFICIAL_DEFAULT;
+    const usdVal = round2((val * 30) / tasa);
     setSalarioMensualUSD(usdVal);
   };
 
@@ -213,59 +230,25 @@ export const WizardLayout: React.FC<WizardLayoutProps> = ({
 
   const calculoLive = calcularLiquidacion(trabajadorCurrent, parametros);
 
-  // Load Carlos Mendoza official sample case
-  const handleLoadCarlosMendoza = () => {
-    const c = EXPEDIENTE_OFICIAL_CARLOS;
-    setSelectedContratistaId(c.contratista.id);
-    setRazonSocial(c.contratista.razonSocial);
-    setRif(c.contratista.rif);
-    setNumeroContrato(c.contratista.numeroContrato);
-    setObraServicio(c.contratista.obraServicio);
-    setComplejo(c.contratista.complejo);
-    setClientePrincipal(c.contratista.clientePrincipal);
-
-    setCedula(c.trabajador.cedula);
-    setNombres(c.trabajador.nombres);
-    setApellidos(c.trabajador.apellidos);
-    setSelectedCargoId(c.trabajador.cargoId);
-    setCargoNombre(c.trabajador.cargoNombre);
-    setSalarioBasico(c.trabajador.salarioBasicoDiario);
-    setMonedaEntrada('BS');
-    setSalarioMensualUSD(202.0);
-    setNivelCCP(c.trabajador.nivelCCP);
-    setTurnoGuardia(c.trabajador.turnoGuardia);
-    setTiempoViaje(c.trabajador.tiempoViajeDiario);
-    setOtrasPrimas(c.trabajador.otrasPrimasRegularesDiarias);
-    setFechaIngreso(c.trabajador.fechaIngreso);
-    setFechaEgreso(c.trabajador.fechaEgreso);
-    setCausaEgreso(c.trabajador.causaEgreso);
-    setEscenarioCalculo('amplio_ccp');
-    setClausula70(true);
-    setAplicaArt92(false);
-    setAnticipos(c.trabajador.anticiposOtorgados);
-    setPorcentajeISLR(c.trabajador.porcentajeISLR);
-    setFechaPuestaDisposicion(c.trabajador.fechaPuestaDisposicion || '2026-11-14');
-  };
-
-  // Load Superoctanos C.A. sample case
-  const handleLoadSuperoctanos = () => {
-    const s = EXPEDIENTE_SUPEROCTANOS_JOSE;
+  // Cargar plantilla de obra Crisbaorca / Superoctanos C.A.
+  const handleLoadCrisbaorcaTemplate = () => {
+    const s = EXPEDIENTES_CRISBAORCA_LIST[0];
+    const tasa = parametros.tasaCambioBCV_USD || TASA_BCV_OFICIAL_DEFAULT;
+    const usdMensual = s.trabajador.salarioMensualUSD || 420.0;
     setSelectedContratistaId(s.contratista.id);
     setRazonSocial(s.contratista.razonSocial);
     setRif(s.contratista.rif);
+    setDireccion(s.contratista.direccion || '');
     setNumeroContrato(s.contratista.numeroContrato);
     setObraServicio(s.contratista.obraServicio);
     setComplejo(s.contratista.complejo);
     setClientePrincipal(s.contratista.clientePrincipal);
 
-    setCedula(s.trabajador.cedula);
-    setNombres(s.trabajador.nombres);
-    setApellidos(s.trabajador.apellidos);
     setSelectedCargoId(s.trabajador.cargoId);
     setCargoNombre(s.trabajador.cargoNombre);
     setMonedaEntrada('USD');
-    setSalarioMensualUSD(420.0);
-    setSalarioBasico(s.trabajador.salarioBasicoDiario);
+    setSalarioMensualUSD(usdMensual);
+    setSalarioBasico(round2((usdMensual / 30) * tasa));
     setNivelCCP(s.trabajador.nivelCCP);
     setTurnoGuardia(s.trabajador.turnoGuardia);
     setTiempoViaje(0);
@@ -286,6 +269,7 @@ export const WizardLayout: React.FC<WizardLayoutProps> = ({
       id: selectedContratistaId || `emp-${Date.now()}`,
       razonSocial,
       rif,
+      direccion,
       numeroContrato,
       obraServicio,
       complejo,
@@ -296,7 +280,7 @@ export const WizardLayout: React.FC<WizardLayoutProps> = ({
       id: expedienteParaEditar?.id || `exp-${Date.now()}`,
       numeroExpediente:
         expedienteParaEditar?.numeroExpediente ||
-        `LIQ-${clientePrincipal.toUpperCase().replace(/\s+/g, '')}-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+        `LIQ-CRISBAORCA-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
       fechaCreacion: expedienteParaEditar?.fechaCreacion || new Date().toISOString(),
       fechaModificacion: new Date().toISOString(),
       contratista: contratistaObj,
@@ -304,9 +288,10 @@ export const WizardLayout: React.FC<WizardLayoutProps> = ({
       parametrosSnapshot: {
         diasUtilidadesCCP: parametros.diasUtilidadesCCP,
         diasBonoVacacionalCCP: parametros.diasBonoVacacionalCCP,
+        diasVacacionesAnualesCCP: parametros.diasVacacionesAnualesCCP,
         diasBonificacionFiniquitoCCP: parametros.diasBonificacionFiniquitoCCP,
         salarioMinimoUrbano: parametros.salarioMinimoUrbano,
-        tasaCambioBCV_USD: parametros.tasaCambioBCV_USD,
+        tasaCambioBCV_USD: parametros.tasaCambioBCV_USD || TASA_BCV_OFICIAL_DEFAULT,
       },
       calculo: calculoLive,
       estado: 'Auditado por Relaciones Laborales',
@@ -323,28 +308,20 @@ export const WizardLayout: React.FC<WizardLayoutProps> = ({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-              {expedienteParaEditar ? 'Modificar Liquidación' : 'Asistente de Liquidación Petrolera'}
+              {expedienteParaEditar ? 'Modificar Liquidación' : 'Asistente de Liquidación — CRISBAORCA 2009, C.A.'}
             </h1>
             <p className="text-sm text-slate-600 mt-1">
-              Cálculo automatizado bajo LOTTT y Convención Colectiva Petrolera (Pequiven, PDVSA y Superoctanos C.A.)
+              Cálculo automatizado bajo LOTTT y Convención Colectiva Petrolera (Obra Planta Superoctanos C.A.)
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <button
-              onClick={handleLoadCarlosMendoza}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors shadow-2xs"
-            >
-              <Sparkles className="w-4 h-4 text-blue-600" />
-              <span>Carlos Mendoza (Pequiven)</span>
-            </button>
-
-            <button
-              onClick={handleLoadSuperoctanos}
+              onClick={handleLoadCrisbaorcaTemplate}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors shadow-2xs"
             >
               <Building2 className="w-4 h-4 text-emerald-600" />
-              <span>Planta Superoctanos C.A. ($420)</span>
+              <span>Plantilla Proyecto Superoctanos</span>
             </button>
           </div>
         </div>
@@ -445,7 +422,7 @@ export const WizardLayout: React.FC<WizardLayoutProps> = ({
                   value={razonSocial}
                   onChange={(e) => setRazonSocial(e.target.value)}
                   className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-600 focus:outline-hidden"
-                  placeholder="Ej: Servicios Ambientales y Montajes de Oriente, C.A."
+                  placeholder="CRISBAORCA 2009, C.A."
                 />
               </div>
 
@@ -458,20 +435,33 @@ export const WizardLayout: React.FC<WizardLayoutProps> = ({
                   value={rif}
                   onChange={(e) => setRif(e.target.value)}
                   className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-600 focus:outline-hidden font-mono"
-                  placeholder="J-31889901-2"
+                  placeholder="J-29711947-7"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Dirección Fiscal:
+                </label>
+                <input
+                  type="text"
+                  value={direccion}
+                  onChange={(e) => setDireccion(e.target.value)}
+                  className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-600 focus:outline-hidden uppercase"
+                  placeholder="AV. VIA HOSPITAL RASETTI, BARCELONA, ANZOATEGUI"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
-                  N° de Contrato Homologado:
+                  Referencia / N° de Contrato:
                 </label>
                 <input
                   type="text"
                   value={numeroContrato}
                   onChange={(e) => setNumeroContrato(e.target.value)}
                   className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-600 focus:outline-hidden font-mono"
-                  placeholder="4600123890"
+                  placeholder="ORNAMENTO SUPEROCTANOS"
                 />
               </div>
 
@@ -555,7 +545,7 @@ export const WizardLayout: React.FC<WizardLayoutProps> = ({
                   value={cedula}
                   onChange={(e) => setCedula(e.target.value)}
                   className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 font-mono uppercase focus:ring-2 focus:ring-blue-600 focus:outline-hidden"
-                  placeholder="V-18.456.789"
+                  placeholder="V-00.000.000"
                 />
               </div>
 
@@ -568,7 +558,7 @@ export const WizardLayout: React.FC<WizardLayoutProps> = ({
                   value={nombres}
                   onChange={(e) => setNombres(e.target.value)}
                   className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 uppercase focus:ring-2 focus:ring-blue-600 focus:outline-hidden"
-                  placeholder="JOSÉ"
+                  placeholder="NOMBRES"
                 />
               </div>
 
@@ -581,7 +571,7 @@ export const WizardLayout: React.FC<WizardLayoutProps> = ({
                   value={apellidos}
                   onChange={(e) => setApellidos(e.target.value)}
                   className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 uppercase focus:ring-2 focus:ring-blue-600 focus:outline-hidden"
-                  placeholder="SUÁREZ"
+                  placeholder="APELLIDOS"
                 />
               </div>
             </div>
@@ -592,8 +582,35 @@ export const WizardLayout: React.FC<WizardLayoutProps> = ({
                 <div className="text-xs font-bold text-slate-800 uppercase tracking-wide">
                   Determinación de Salario Base (Bimonetario):
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-2xs text-slate-500 font-medium">Modalidad de captura:</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const updated = await onSyncLiveBCV();
+                      if (updated) {
+                        const nuevaTasa = updated.tasaCambioBCV_USD;
+                        if (monedaEntrada === 'USD') {
+                          setSalarioBasico(round2((salarioMensualUSD / 30) * nuevaTasa));
+                        } else {
+                          setSalarioMensualUSD(round2((salarioBasico * 30) / nuevaTasa));
+                        }
+                      }
+                    }}
+                    disabled={bcvSyncState.loading}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-2xs font-bold text-white bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 transition-colors shadow-2xs"
+                  >
+                    {bcvSyncState.loading ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <DollarSign className="w-3 h-3" />
+                    )}
+                    <span>
+                      {bcvSyncState.loading
+                        ? 'Consultando...'
+                        : `Dólar BCV Hoy (Bs. ${formatBs(parametros.tasaCambioBCV_USD, 4)})`}
+                    </span>
+                  </button>
+                  <span className="text-2xs text-slate-500 font-medium">Modalidad:</span>
                   <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-xs">
                     <button
                       type="button"
@@ -620,6 +637,20 @@ export const WizardLayout: React.FC<WizardLayoutProps> = ({
                   </div>
                 </div>
               </div>
+
+              {bcvSyncState.lastSyncedRate && !bcvSyncState.error && (
+                <div className="p-2 bg-emerald-50 border border-emerald-200 rounded text-2xs text-emerald-900 flex items-center justify-between">
+                  <span>
+                    ✓ Tasa BCV actualizada a <strong>Bs. {formatBs(bcvSyncState.lastSyncedRate, 4)}</strong> / USD
+                  </span>
+                  <span className="font-mono text-emerald-700">{bcvSyncState.lastSource}</span>
+                </div>
+              )}
+              {bcvSyncState.error && (
+                <div className="p-2 bg-red-50 border border-red-200 rounded text-2xs text-red-800">
+                  {bcvSyncState.error}
+                </div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="md:col-span-1">
@@ -669,7 +700,7 @@ export const WizardLayout: React.FC<WizardLayoutProps> = ({
                         type="number"
                         step="0.01"
                         value={salarioBasico}
-                        onChange={(e) => setSalarioBasico(parseFloat(e.target.value) || 0)}
+                        onChange={(e) => handleSalarioBsChange(parseFloat(e.target.value) || 0)}
                         className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 font-mono font-bold text-blue-900 focus:ring-2 focus:ring-blue-600 focus:outline-hidden"
                       />
                       <span className="text-2xs text-slate-500 mt-1 block">
@@ -990,7 +1021,9 @@ export const WizardLayout: React.FC<WizardLayoutProps> = ({
                 <div>
                   <span className="text-slate-500 block">Meses Fraccionados Computables:</span>
                   <span className="font-bold text-slate-900 text-sm">
-                    {tiempoCalculado.mesesComputablesFracciones} Meses (Fracción &gt; 15d = Mes)
+                    {escenarioCalculo === 'amplio_ccp'
+                      ? `${tiempoCalculado.mesesComputablesFracciones} Meses (Fracción > 15d = Mes)`
+                      : `${tiempoCalculado.mesesEstrictoFracciones} Meses (Meses enteros cumplidos)`}
                   </span>
                 </div>
               </div>
@@ -999,22 +1032,22 @@ export const WizardLayout: React.FC<WizardLayoutProps> = ({
                 <div>
                   <span className="text-slate-500 text-2xs block">Salario Básico Diario:</span>
                   <span className="font-semibold text-slate-900">Bs. {formatBs(calculoLive.salarioBasicoDiario)}</span>
-                  <span className="text-3xs text-slate-400 block">${round2(calculoLive.salarioBasicoDiario / (parametros.tasaCambioBCV_USD || 66.80))} USD</span>
+                  <span className="text-3xs text-slate-400 block">${round2(calculoLive.salarioBasicoDiario / (parametros.tasaCambioBCV_USD || TASA_BCV_OFICIAL_DEFAULT))} USD</span>
                 </div>
                 <div>
                   <span className="text-slate-500 text-2xs block">Alícuota Utilidades ({parametros.diasUtilidadesCCP}d):</span>
                   <span className="font-semibold text-slate-900">Bs. {formatBs(calculoLive.alicuotaUtilidadesDiaria)}</span>
-                  <span className="text-3xs text-slate-400 block">${round2(calculoLive.alicuotaUtilidadesDiaria / (parametros.tasaCambioBCV_USD || 66.80))} USD</span>
+                  <span className="text-3xs text-slate-400 block">${round2(calculoLive.alicuotaUtilidadesDiaria / (parametros.tasaCambioBCV_USD || TASA_BCV_OFICIAL_DEFAULT))} USD</span>
                 </div>
                 <div>
                   <span className="text-slate-500 text-2xs block">Alícuota Vacaciones ({parametros.diasBonoVacacionalCCP}d):</span>
                   <span className="font-semibold text-slate-900">Bs. {formatBs(calculoLive.alicuotaBonoVacacionalDiaria)}</span>
-                  <span className="text-3xs text-slate-400 block">${round2(calculoLive.alicuotaBonoVacacionalDiaria / (parametros.tasaCambioBCV_USD || 66.80))} USD</span>
+                  <span className="text-3xs text-slate-400 block">${round2(calculoLive.alicuotaBonoVacacionalDiaria / (parametros.tasaCambioBCV_USD || TASA_BCV_OFICIAL_DEFAULT))} USD</span>
                 </div>
                 <div>
                   <span className="text-slate-500 text-2xs block">Salario Integral Diario:</span>
                   <span className="font-bold text-blue-900">Bs. {formatBs(calculoLive.salarioIntegralDiario)}</span>
-                  <span className="text-3xs font-bold text-emerald-700 block">${round2(calculoLive.salarioIntegralDiario / (parametros.tasaCambioBCV_USD || 66.80))} USD</span>
+                  <span className="text-3xs font-bold text-emerald-700 block">${round2(calculoLive.salarioIntegralDiario / (parametros.tasaCambioBCV_USD || TASA_BCV_OFICIAL_DEFAULT))} USD</span>
                 </div>
               </div>
             </div>
@@ -1065,13 +1098,13 @@ export const WizardLayout: React.FC<WizardLayoutProps> = ({
                   <div className="flex justify-between py-1 border-b border-slate-200">
                     <span className="text-slate-600">Salario Integral Diario:</span>
                     <span className="font-semibold text-slate-900">
-                      Bs. {formatBs(calculoLive.salarioIntegralDiario)} (${round2(calculoLive.salarioIntegralDiario / (parametros.tasaCambioBCV_USD || 66.80))})
+                      Bs. {formatBs(calculoLive.salarioIntegralDiario)} (${round2(calculoLive.salarioIntegralDiario / (parametros.tasaCambioBCV_USD || TASA_BCV_OFICIAL_DEFAULT))})
                     </span>
                   </div>
                   <div className="flex justify-between py-1 border-b border-slate-200">
                     <span className="text-slate-600">Subtotal Garantía:</span>
                     <span className="font-semibold text-slate-900">
-                      Bs. {formatBs(calculoLive.garantiaTrimestral.montoGarantia)} (${round2(calculoLive.garantiaTrimestral.montoGarantia / (parametros.tasaCambioBCV_USD || 66.80))})
+                      Bs. {formatBs(calculoLive.garantiaTrimestral.montoGarantia)} (${round2(calculoLive.garantiaTrimestral.montoGarantia / (parametros.tasaCambioBCV_USD || TASA_BCV_OFICIAL_DEFAULT))})
                     </span>
                   </div>
                   <div className="flex justify-between py-1 border-b border-slate-200">

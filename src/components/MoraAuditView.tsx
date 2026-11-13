@@ -32,10 +32,10 @@ export const MoraAuditView: React.FC<MoraAuditViewProps> = ({
   const selectedExp = expedientes.find((e) => e.id === selectedExpId) || expedientes[0];
 
   const [fechaEgreso, setFechaEgreso] = useState<string>(
-    selectedExp?.trabajador.fechaEgreso || '2026-11-11'
+    selectedExp?.trabajador.fechaEgreso || '2026-11-24'
   );
   const [fechaPago, setFechaPago] = useState<string>(
-    selectedExp?.trabajador.fechaPuestaDisposicion || '2026-11-20'
+    selectedExp?.trabajador.fechaPuestaDisposicion || '2026-11-28'
   );
 
   // When selected expediente changes, update dates
@@ -59,11 +59,15 @@ export const MoraAuditView: React.FC<MoraAuditViewProps> = ({
   const diasGracia = 5;
   const diasMoraEfectiva = Math.max(0, diasTranscurridos - diasGracia);
 
-  const netoBase = selectedExp?.calculo.netoAPagar || 119035.80;
-  const salarioNormalDiario = selectedExp?.calculo.salarioNormalDiario || 520.0;
+  const netoBase = selectedExp?.calculo.netoAPagar || 0;
+  const salarioNormalDiario = selectedExp?.calculo.salarioNormalDiario || 0;
 
   // 1. Legal Contractor Moratory Interest (LOTTT Art. 143 / CRBV Art. 92)
-  const tasaActivaBCV = 35.90;
+  const mesEgresoClave = fechaEgreso.slice(0, 7);
+  const tasaEgresoObj = parametros.tasasBCV?.find((t) => t.mes === mesEgresoClave);
+  const tasaActivaBCV = tasaEgresoObj
+    ? (tasaEgresoObj.tasaActiva || tasaEgresoObj.tasaPromedio)
+    : 47.46;
   const tasaDiaria = (tasaActivaBCV / 100) / 360;
   const interesMoratorioLegal = round2(netoBase * tasaDiaria * diasMoraEfectiva);
 
@@ -253,7 +257,7 @@ export const MoraAuditView: React.FC<MoraAuditViewProps> = ({
 
         <div className="text-xs leading-relaxed text-slate-800 space-y-3">
           <p>
-            En la ciudad de Caracas / Maracaibo / Morón, a los efectos de ser presentado ante la <strong>Gerencia de Relaciones Laborales de Pequiven / PDVSA</strong> y la <strong>Inspectoría del Trabajo (MINTRA)</strong>, se deja constancia técnica y jurídica de lo siguiente:
+            En Barcelona, Estado Anzoátegui, a los efectos de ser presentado ante la <strong>Gerencia de Relaciones Laborales de {selectedExp?.contratista.clientePrincipal || 'Superoctanos C.A.'}</strong> y la <strong>Inspectoría del Trabajo (MINTRA)</strong>, se deja constancia técnica y jurídica de lo siguiente para la empresa <strong>{selectedExp?.contratista.razonSocial || 'CRISBAORCA 2009, C.A.'}</strong> (RIF {selectedExp?.contratista.rif || 'J-29711947-7'}):
           </p>
 
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-md grid grid-cols-2 sm:grid-cols-4 gap-2 text-2xs font-mono">
@@ -292,7 +296,7 @@ export const MoraAuditView: React.FC<MoraAuditViewProps> = ({
           <div>
             <div className="border-b border-slate-900 pb-1 mb-2"></div>
             <span className="font-bold text-slate-900 uppercase block">Auditoría de Relaciones Laborales</span>
-            <span className="text-2xs text-slate-500">Contratista Petrolera Pequiven</span>
+            <span className="text-2xs text-slate-500">{selectedExp?.contratista.razonSocial || 'CRISBAORCA 2009, C.A.'}</span>
           </div>
           <div>
             <div className="border-b border-slate-900 pb-1 mb-2"></div>

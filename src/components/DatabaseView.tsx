@@ -12,26 +12,39 @@ import {
   Calendar,
   DollarSign,
   Briefcase,
+  RefreshCw,
+  CheckCircle2,
   AlertCircle,
+  Loader2,
+  Globe,
 } from 'lucide-react';
-import { ExpedienteLiquidacion } from '../types/settlement';
+import { ExpedienteLiquidacion, ParametrosMaestros } from '../types/settlement';
 import { formatBs } from '../utils/calculator';
 import { secureStorage } from '../db/secureStorage';
+import { exportOfficialPDF } from '../utils/pdfExport';
+import { exportOfficialWord } from '../utils/wordExport';
+import { BCVSyncState } from '../utils/bcvService';
 
 interface DatabaseViewProps {
   expedientes: ExpedienteLiquidacion[];
+  parametros: ParametrosMaestros;
   onSelectExpediente: (expediente: ExpedienteLiquidacion) => void;
   onEditExpediente: (expediente: ExpedienteLiquidacion) => void;
   onNewSettlement: () => void;
   onReload: () => void;
+  onSyncLiveBCV: () => Promise<ParametrosMaestros | null>;
+  bcvSyncState: BCVSyncState;
 }
 
 export const DatabaseView: React.FC<DatabaseViewProps> = ({
   expedientes,
+  parametros,
   onSelectExpediente,
   onEditExpediente,
   onNewSettlement,
   onReload,
+  onSyncLiveBCV,
+  bcvSyncState,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -39,6 +52,9 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
   const [showBackupModal, setShowBackupModal] = useState(false);
   const [importText, setImportText] = useState('');
   const [importStatus, setImportStatus] = useState<string | null>(null);
+  const [recalcSuccess, setRecalcSuccess] = useState(false);
+  const [downloadingHTML, setDownloadingHTML] = useState(false);
+  const [htmlDownloadError, setHtmlDownloadError] = useState<string | null>(null);
 
   // Filtered expedientes
   const filtered = expedientes.filter((exp) => {
@@ -131,7 +147,7 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Liquidaciones_Pequiven_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `Liquidaciones_CRISBAORCA_2009_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -164,20 +180,71 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
     }
   };
 
+  const handleRecalculateAll = () => {
+    secureStorage.recalcularTodosExpedientes(parametros);
+    onReload();
+    setRecalcSuccess(true);
+    setTimeout(() => setRecalcSuccess(false), 3500);
+  };
+
+  const handleDownloadPortableHTML = async () => {
+    setDownloadingHTML(true);
+    setHtmlDownloadError(null);
+    try {
+      const response = await fetch('/PetroFiniquito_CRISBAORCA_2009.html', { cache: 'no-store' });
+      if (!response.ok) {
+        throw new Error('No se pudo obtener el archivo HTML portable del servidor.');
+      }
+      const htmlText = await response.text();
+      const blob = new Blob([htmlText], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'PetroFiniquito_CRISBAORCA_2009.html';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+    } catch (err) {
+      console.error('Error downloading portable HTML:', err);
+      setHtmlDownloadError(
+        'No se pudo iniciar la descarga automática. Puede abrir la URL de la app terminada en /PetroFiniquito_CRISBAORCA_2009.html y guardarla con Ctrl+S.'
+      );
+    } finally {
+      setDownloadingHTML(false);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
       {/* Top Banner and Stats Strip */}
-      <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="mb-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
             Expedientes de Liquidación y Base de Datos
           </h1>
           <p className="text-sm text-slate-600 mt-0.5">
-            Registro auditable de finiquitos homologados para contratistas de Pequiven y PDVSA
+            Registro auditable de finiquitos laborales de CRISBAORCA 2009, C.A. (RIF J-29711947-7)
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          {typeof window !== 'undefined' && window.location.protocol !== 'file:' && (
+            <button
+              onClick={handleDownloadPortableHTML}
+              disabled={downloadingHTML}
+              title="Descargar la aplicación completa en un solo archivo HTML portable para enviar por Gmail y abrir en Chrome, Edge u Opera"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-indigo-700 rounded-lg hover:bg-indigo-800 disabled:bg-indigo-400 transition-colors shadow-xs cursor-pointer"
+            >
+              {downloadingHTML ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Globe className="w-3.5 h-3.5" />
+              )}
+              <span>{downloadingHTML ? 'Descargando HTML...' : 'Descargar HTML Portable (Gmail)'}</span>
+            </button>
+          )}
+
           <button
             onClick={() => setShowBackupModal(true)}
             className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors shadow-2xs"
@@ -204,6 +271,98 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
         </div>
       </div>
 
+      {/* Prominent BCV & Mass Recalculation Control Bar */}
+      <div className="mb-6 p-4 bg-white border-2 border-slate-200 rounded-xl shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="flex items-start sm:items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-emerald-100 border border-emerald-200 flex items-center justify-center shrink-0">
+            <RefreshCw className="w-5 h-5 text-emerald-700" />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">
+              Actualización de Tasa BCV y Recálculo Masivo de Finiquitos
+            </h2>
+            <p className="text-xs text-slate-600">
+              Tasa BCV activa: <strong className="font-mono text-slate-900">Bs. {formatBs(parametros.tasaCambioBCV_USD, 4)} / USD</strong> · Recalcula automáticamente los {expedientes.length} expedientes con LOTTT, CCP, IVSS/SPF y Art. 143.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 shrink-0">
+          <button
+            onClick={onSyncLiveBCV}
+            disabled={bcvSyncState.loading}
+            title="Consultar el precio oficial del Dólar BCV del día en tiempo real (API) y recalcular todos los finiquitos"
+            className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:bg-amber-400 transition-colors shadow-sm cursor-pointer"
+          >
+            {bcvSyncState.loading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <DollarSign className="w-4 h-4" />
+            )}
+            <span>
+              {bcvSyncState.loading
+                ? 'Consultando BCV...'
+                : `Dólar BCV del Día (API)`}
+            </span>
+          </button>
+
+          <button
+            onClick={handleRecalculateAll}
+            title="Recalcular todos los finiquitos de CRISBAORCA 2009, C.A. con los parámetros y tasa BCV vigentes"
+            className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 active:scale-[0.99] transition-all shadow-sm ring-2 ring-emerald-600/20 cursor-pointer"
+          >
+            <RefreshCw className="w-4 h-4" />
+            <span>Recalcular Todos ({expedientes.length})</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Recalculation & Live BCV Sync Feedback Banners */}
+      {recalcSuccess && (
+        <div className="mb-5 p-3.5 bg-emerald-50 border border-emerald-300 rounded-xl flex items-center gap-2 text-xs text-emerald-950 shadow-2xs">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>
+            <strong>¡Recálculo completado!</strong> Todos los finiquitos ({expedientes.length} expedientes de CRISBAORCA 2009, C.A.) fueron recalculados con la tasa oficial de{' '}
+            <strong className="font-mono">Bs. {formatBs(parametros.tasaCambioBCV_USD, 4)} / USD</strong>.
+          </span>
+        </div>
+      )}
+
+      {bcvSyncState.lastSyncedRate && !bcvSyncState.error && (
+        <div className="mb-5 p-3.5 bg-emerald-50 border border-emerald-300 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-emerald-950 shadow-2xs">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>
+              <strong>Tasa Dólar BCV del Día aplicada:</strong> Bs.{' '}
+              <span className="font-mono font-bold">{formatBs(bcvSyncState.lastSyncedRate, 4)}</span> / USD ·{' '}
+              Todos los finiquitos de CRISBAORCA 2009, C.A. ({expedientes.length} expedientes) fueron recalculados automáticamente.
+            </span>
+          </div>
+          <span className="text-2xs font-mono text-emerald-800 shrink-0">
+            Fuente: {bcvSyncState.lastSource}
+            {bcvSyncState.lastDate
+              ? ` · Act: ${new Date(bcvSyncState.lastDate).toLocaleDateString('es-VE')}`
+              : ''}
+          </span>
+        </div>
+      )}
+
+      {bcvSyncState.error && (
+        <div className="mb-5 p-3.5 bg-red-50 border border-red-300 rounded-xl flex items-center gap-2 text-xs text-red-900 shadow-2xs">
+          <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+          <span>
+            <strong>Error al consultar API BCV:</strong> {bcvSyncState.error} Puede ajustar la tasa manualmente en Parámetros Maestros.
+          </span>
+        </div>
+      )}
+
+      {htmlDownloadError && (
+        <div className="mb-5 p-3.5 bg-amber-50 border border-amber-300 rounded-xl flex items-center gap-2 text-xs text-amber-950 shadow-2xs">
+          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+          <span>{htmlDownloadError}</span>
+        </div>
+      )}
+
       {/* KPI Cards Strip */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
@@ -229,7 +388,9 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
           <span className="text-2xl font-bold text-slate-800 font-mono mt-1 block">
             USD ${formatBs(totalUSD)}
           </span>
-          <span className="text-2xs text-slate-400 mt-0.5 block">Conversión según tasa oficial</span>
+          <span className="text-2xs text-slate-500 mt-0.5 block font-mono">
+            Tasa oficial activa: {formatBs(parametros.tasaCambioBCV_USD, 4)} Bs./USD
+          </span>
         </div>
       </div>
 
@@ -363,13 +524,29 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
                     </td>
 
                     <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() => onSelectExpediente(exp)}
                           title="Ver Recibo Oficial"
                           className="p-1.5 text-slate-600 hover:text-blue-700 hover:bg-slate-100 rounded transition-colors"
                         >
                           <FileText className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          onClick={() => exportOfficialWord(exp)}
+                          title="Exportar Finiquito a Word (.doc)"
+                          className="px-1.5 py-1 text-2xs font-bold text-sky-700 bg-sky-50 border border-sky-200 hover:bg-sky-100 rounded transition-colors"
+                        >
+                          Word
+                        </button>
+
+                        <button
+                          onClick={() => exportOfficialPDF(exp)}
+                          title="Exportar Finiquito a PDF (.pdf)"
+                          className="px-1.5 py-1 text-2xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded transition-colors"
+                        >
+                          PDF
                         </button>
 
                         <button

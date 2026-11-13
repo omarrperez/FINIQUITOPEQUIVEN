@@ -21,9 +21,10 @@ export interface Contratista {
   id: string;
   razonSocial: string;
   rif: string;
+  direccion?: string;
   numeroContrato: string;
   obraServicio: string;
-  complejo: string; // Ej: Complejo Petroquímico Hugo Chávez (Morón) / Ana María Campos (El Tablazo) / Jose / Planta Superoctanos C.A.
+  complejo: string;
   clientePrincipal: 'Pequiven' | 'PDVSA' | 'Empresa Mixta' | 'Superoctanos C.A.';
 }
 
@@ -172,12 +173,16 @@ export interface DetalleCalculoLiquidacion {
       porcentaje: number;
       base: number;
       topeAplicado: boolean;
+      semanasCotizadas?: number;
+      baseSemanal?: number;
       total: number;
     };
     spf: {
       porcentaje: number;
       base: number;
       topeAplicado: boolean;
+      semanasCotizadas?: number;
+      baseSemanal?: number;
       total: number;
     };
     faov: {
@@ -222,6 +227,7 @@ export interface ExpedienteLiquidacion {
   parametrosSnapshot: {
     diasUtilidadesCCP: number;
     diasBonoVacacionalCCP: number;
+    diasVacacionesAnualesCCP?: number;
     diasBonificacionFiniquitoCCP: number;
     salarioMinimoUrbano: number;
     tasaCambioBCV_USD: number;

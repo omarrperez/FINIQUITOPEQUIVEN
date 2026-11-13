@@ -6,6 +6,8 @@ import {
 } from '../types/settlement';
 import { numeroALetras } from './numberToWords';
 
+export const TASA_BCV_OFICIAL_DEFAULT = 904.4485;
+
 /**
  * Redondeo financiero a 2 decimales evitando redondeos intermedios prematuros
  */
@@ -17,12 +19,37 @@ export function round2(num: number): number {
  * Formateo en Bolívares con estándar venezolano (punto para miles, coma para decimales)
  * Ej: 119035.8 -> "119.035,80"
  */
-export function formatBs(num: number): string {
+export function formatBs(num: number, decimals: number = 2): string {
   if (isNaN(num) || num === null || num === undefined) return '0,00';
   return num.toLocaleString('de-DE', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
   });
+}
+
+/**
+ * Cuenta los lunes calendario contenidos en el mes de egreso (o desde fechaIngreso si es el mismo mes)
+ * hasta la fecha de egreso inclusive, según el Reglamento de la Ley del Seguro Social (IVSS / SPF).
+ */
+export function contarLunesMesEgreso(fechaIngresoStr: string, fechaEgresoStr: string): number {
+  const dIngreso = new Date(fechaIngresoStr + 'T00:00:00');
+  const dEgreso = new Date(fechaEgresoStr + 'T00:00:00');
+  if (isNaN(dIngreso.getTime()) || isNaN(dEgreso.getTime()) || dEgreso < dIngreso) {
+    return 4;
+  }
+
+  const inicioMesEgreso = new Date(dEgreso.getFullYear(), dEgreso.getMonth(), 1);
+  const fechaInicioConteo = dIngreso > inicioMesEgreso ? dIngreso : inicioMesEgreso;
+
+  let lunes = 0;
+  const cursor = new Date(fechaInicioConteo.getTime());
+  while (cursor <= dEgreso) {
+    if (cursor.getDay() === 1) {
+      lunes += 1;
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return Math.max(1, lunes);
 }
 
 /**
@@ -42,26 +69,26 @@ export function calcularTiempoServicio(fechaIngresoStr: string, fechaEgresoStr: 
       trimestresCompletos: 0,
       trimestresIniciados: 0,
       mesesComputablesFracciones: 0,
+      mesesEstrictoFracciones: 0,
     };
   }
 
   const diffTime = Math.abs(dEgreso.getTime() - dIngreso.getTime());
   const totalDias = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1; // Inclusive
 
-  let y1 = dIngreso.getFullYear();
-  let m1 = dIngreso.getMonth();
-  let d1 = dIngreso.getDate();
+  const y1 = dIngreso.getFullYear();
+  const m1 = dIngreso.getMonth();
+  const d1 = dIngreso.getDate();
 
-  let y2 = dEgreso.getFullYear();
-  let m2 = dEgreso.getMonth();
-  let d2 = dEgreso.getDate();
+  const y2 = dEgreso.getFullYear();
+  const m2 = dEgreso.getMonth();
+  const d2 = dEgreso.getDate();
 
   let dias = d2 - d1;
   let meses = m2 - m1;
   let anos = y2 - y1;
 
   if (dias < 0) {
-    // Tomar días del mes anterior
     const prevMonthDays = new Date(y2, m2, 0).getDate();
     dias += prevMonthDays;
     meses -= 1;
@@ -74,8 +101,12 @@ export function calcularTiempoServicio(fechaIngresoStr: string, fechaEgresoStr: 
 
   const mesesTotales = anos * 12 + meses;
 
-  // Fracción superior a 15 días computa como mes completo en el criterio jurisprudencial petrolero
-  const mesesComputablesFracciones = dias > 15 ? mesesTotales + 1 : (dias >= 1 ? mesesTotales : Math.max(1, mesesTotales));
+  // Fracción superior a 15 días computa como mes completo en el criterio amplio CCP
+  const mesesComputablesFracciones = Math.max(
+    1,
+    dias > 15 ? mesesTotales + 1 : mesesTotales
+  );
+  const mesesEstrictoFracciones = Math.max(1, mesesTotales);
 
   // Fracción superior a 6 meses para retroactividad (Art. 142 literal c)
   const fraccionMayor6Meses = meses > 6 || (meses === 6 && dias > 0);
@@ -83,9 +114,9 @@ export function calcularTiempoServicio(fechaIngresoStr: string, fechaEgresoStr: 
   // Trimestres completos de garantía
   const trimestresCompletos = Math.floor(mesesTotales / 3);
 
-  // Trimestres iniciados (en el escenario amplio de la CCP, un trimestre iniciado da derecho al depósito)
+  // Trimestres iniciados (Art. 142-a LOTTT / criterio amplio CCP: el inicio del trimestre genera derecho al depósito)
   const mesesRemanentes = mesesTotales % 3;
-  const trimestreIniciadoExtra = (mesesRemanentes > 0 || dias > 0) ? 1 : 0;
+  const trimestreIniciadoExtra = mesesRemanentes > 0 || dias > 0 ? 1 : 0;
   const trimestresIniciados = trimestresCompletos + trimestreIniciadoExtra;
 
   return {
@@ -96,7 +127,8 @@ export function calcularTiempoServicio(fechaIngresoStr: string, fechaEgresoStr: 
     fraccionMayor6Meses,
     trimestresCompletos,
     trimestresIniciados,
-    mesesComputablesFracciones: Math.max(1, mesesComputablesFracciones),
+    mesesComputablesFracciones,
+    mesesEstrictoFracciones,
   };
 }
 
@@ -109,12 +141,13 @@ export function calcularLiquidacion(
 ): DetalleCalculoLiquidacion {
   const tiempo = calcularTiempoServicio(trabajador.fechaIngreso, trabajador.fechaEgreso);
   const escenario = trabajador.escenarioCalculo || 'amplio_ccp';
+  const tasaUSD = parametros.tasaCambioBCV_USD || TASA_BCV_OFICIAL_DEFAULT;
 
   // 1. Salario Básico y Salario Normal Diario
-  // Si el salario fue introducido en USD, se puede calcular con la tasa BCV
+  // Si el salario está indexado en USD, siempre deriva del sueldo USD a la tasa oficial BCV vigente
   let salarioBasico = Number(trabajador.salarioBasicoDiario) || 0;
-  if (trabajador.monedaEntrada === 'USD' && trabajador.salarioMensualUSD && !trabajador.salarioBasicoDiario) {
-    salarioBasico = round2((trabajador.salarioMensualUSD / 30) * (parametros.tasaCambioBCV_USD || 66.80));
+  if (trabajador.monedaEntrada === 'USD' && trabajador.salarioMensualUSD && trabajador.salarioMensualUSD > 0) {
+    salarioBasico = round2((trabajador.salarioMensualUSD / 30) * tasaUSD);
   }
 
   const tiempoViaje = Number(trabajador.tiempoViajeDiario) || 0;
@@ -122,24 +155,23 @@ export function calcularLiquidacion(
   const salarioNormalDiario = round2(salarioBasico + tiempoViaje + otrasPrimas);
 
   // 2. Alícuotas Convención Colectiva Petrolera (CCP)
-  // Alícuota Utilidades = (Días Utilidades * Salario Básico) / 360
-  // Alícuota Bono Vacacional = (Días Bono Vacacional * Salario Básico) / 360
+  // Alícuota Utilidades = (Días Utilidades * Salario Normal) / 360 (o Básico si TV=0)
+  // Alícuota Bono Vacacional = (Días Bono Vacacional * Salario Normal) / 360
   const diasUtilidades = parametros.diasUtilidadesCCP || 120;
-  const diasBonoVac = parametros.diasBonoVacacionalCCP || 55; // Habitual 55 días según la CCP
+  const diasBonoVac = parametros.diasBonoVacacionalCCP || 55;
 
   const alicuotaUtilidadesDiaria = round2((diasUtilidades * salarioBasico) / 360);
   const alicuotaBonoVacacionalDiaria = round2((diasBonoVac * salarioBasico) / 360);
 
   // Salario Integral Diario Petrolero:
-  // Salario Básico + Alícuota Utilidades + Alícuota Bono Vacacional + Primas / Tiempo de Viaje
+  // Salario Básico + Tiempo de Viaje + Primas + Alícuota Utilidades + Alícuota Bono Vacacional
   const salarioIntegralDiario = round2(
     salarioBasico + alicuotaUtilidadesDiaria + alicuotaBonoVacacionalDiaria + tiempoViaje + otrasPrimas
   );
 
   // 3. Garantía Trimestral de Prestaciones (Art. 142 literal A y B)
-  // Escenario Estricto: trimestres completos vencidos (15d por c/3 meses enteros)
-  // Escenario Amplio CCP: trimestres iniciados (si inició el 2do trimestre, computa 30 días)
-  const trimestresGarantia = escenario === 'amplio_ccp' ? tiempo.trimestresIniciados : tiempo.trimestresCompletos;
+  const trimestresGarantia =
+    escenario === 'amplio_ccp' ? tiempo.trimestresIniciados : tiempo.trimestresCompletos;
   const diasGarantiaTrimestres = trimestresGarantia * 15;
 
   // Días adicionales de antigüedad (Literal B): 2 días por año a partir del 2do año, máx 30 días
@@ -152,35 +184,70 @@ export function calcularLiquidacion(
   const montoGarantia = round2(diasTotalesGarantia * salarioIntegralDiario);
 
   // Generación de la tabla mensual de garantía e intereses (Art. 143 LOTTT)
+  // Mapea los meses calendario reales desde fechaIngreso hasta fechaEgreso contra las tasas BCV
   const tablaMensual: MesDevengado[] = [];
   let saldoAcumulado = 0;
   let interesAcumulado = 0;
 
-  // Si es el caso de muestra predefinido Carlos Mendoza, respetamos el histórico exacto homologado
-  const esCasoCarlosMendoza =
-    trabajador.cedula === 'V-16.789.012' ||
-    (trabajador.fechaIngreso === '2026-01-15' && trabajador.fechaEgreso === '2026-11-11' && salarioBasico === 450);
+  const dIngreso = new Date(trabajador.fechaIngreso + 'T00:00:00');
+  const mesesCompletosServicio = tiempo.anos * 12 + tiempo.meses;
+  const numMesesTabla = Math.max(1, mesesCompletosServicio + (tiempo.dias > 0 ? 1 : 0));
 
-  const mesesTotales = Math.max(1, tiempo.anos * 12 + tiempo.meses);
+  let diasAdicionalesRestantes = diasAdicionalesAntiguedad;
 
-  for (let m = 1; m <= mesesTotales; m++) {
-    const esMesTrimestre = m % 3 === 0;
-    const diasAbono = esMesTrimestre ? 15 : 0;
-    const abonoMes = round2(diasAbono * salarioIntegralDiario);
+  for (let i = 0; i < numMesesTabla; i++) {
+    const mesIndex = i + 1;
+    let mesClave = `Mes ${mesIndex}`;
+    if (!isNaN(dIngreso.getTime())) {
+      const fechaMes = new Date(dIngreso.getFullYear(), dIngreso.getMonth() + i, 1);
+      const yyyy = fechaMes.getFullYear();
+      const mm = String(fechaMes.getMonth() + 1).padStart(2, '0');
+      mesClave = `${yyyy}-${mm}`;
+    }
+
+    // En criterio amplio (Art. 142-a: "desde el momento de iniciar el trimestre"), se abona al inicio de c/trimestre (i % 3 === 0)
+    // En criterio estricto, se abona al vencimiento de c/trimestre completo ((i + 1) % 3 === 0)
+    let diasAbono = 0;
+    if (escenario === 'amplio_ccp') {
+      if (i % 3 === 0 && i / 3 < trimestresGarantia) {
+        diasAbono = 15;
+      }
+    } else {
+      if ((i + 1) % 3 === 0 && Math.floor((i + 1) / 3) <= trimestresGarantia) {
+        diasAbono = 15;
+      }
+    }
+
+    // Días adicionales por año a partir del 2do año
+    let diasAdicMes = 0;
+    if (diasAdicionalesRestantes > 0 && mesIndex >= 24 && mesIndex % 12 === 0) {
+      diasAdicMes = Math.min(2, diasAdicionalesRestantes);
+      diasAdicionalesRestantes -= diasAdicMes;
+    }
+
+    const totalDiasMes = diasAbono + diasAdicMes;
+    const abonoMes = round2(totalDiasMes * salarioIntegralDiario);
     saldoAcumulado = round2(saldoAcumulado + abonoMes);
 
-    const tasaAnual = parametros.tasasBCV && parametros.tasasBCV[m - 1]
-      ? parametros.tasasBCV[m - 1].tasaActiva
-      : 32.5;
+    const tasaObj = parametros.tasasBCV?.find((t) => t.mes === mesClave);
+    const tasaAnual = tasaObj
+      ? (tasaObj.tasaPromedio || tasaObj.tasaActiva)
+      : parametros.tasasBCV && parametros.tasasBCV.length > 0
+        ? (parametros.tasasBCV[parametros.tasasBCV.length - 1].tasaPromedio ||
+            parametros.tasasBCV[parametros.tasasBCV.length - 1].tasaActiva)
+        : 47.46;
+
+    const esUltimoMesParcial = i === numMesesTabla - 1 && tiempo.dias > 0;
+    const factorTiempoMes = esUltimoMesParcial ? tiempo.dias / 30 : 1;
 
     const tasaMensual = (tasaAnual / 100) / 12;
-    const interesMes = round2(saldoAcumulado * tasaMensual);
+    const interesMes = round2(saldoAcumulado * tasaMensual * factorTiempoMes);
     interesAcumulado = round2(interesAcumulado + interesMes);
 
     tablaMensual.push({
-      mesAno: `Mes ${m}`,
+      mesAno: mesClave,
       diasGarantiaAbonados: diasAbono,
-      diasAdicionales: 0,
+      diasAdicionales: diasAdicMes,
       salarioIntegralDiario,
       abonoGarantiaMes: abonoMes,
       garantiaAcumulada: saldoAcumulado,
@@ -190,17 +257,13 @@ export function calcularLiquidacion(
     });
   }
 
-  let interesesAcumuladosArt143 = round2(interesAcumulado);
-  if (esCasoCarlosMendoza) {
-    interesesAcumuladosArt143 = 2450.80; // Homologado según la ficha oficial
-  }
-
+  const interesesAcumuladosArt143 = round2(interesAcumulado);
   const totalGarantiaMasIntereses = round2(montoGarantia + interesesAcumuladosArt143);
 
   // 4. Retroactividad de Prestaciones Sociales (Art. 142 literal C)
   // 30 días de salario integral por cada año de servicio o fracción superior a 6 meses
   let anosComputablesRetroactividad = tiempo.anos;
-  if (tiempo.fraccionMayor6Meses || (tiempo.anos === 0 && tiempo.meses >= 6)) {
+  if (tiempo.fraccionMayor6Meses) {
     anosComputablesRetroactividad += 1;
   }
   const diasAntiguedadRetroactiva = anosComputablesRetroactividad * 30;
@@ -227,16 +290,19 @@ export function calcularLiquidacion(
   }
 
   // 6. Haberes Fraccionados (Sobre Salario Normal Diario)
-  // Regla de cómputo de meses para fracciones:
-  // Si escenario es 'amplio_ccp' y transcurrieron más de 15 días (ej. 3 meses y 21 días = 4 meses)
-  const mesesFracciones = esCasoCarlosMendoza ? 10 : tiempo.mesesComputablesFracciones;
+  // En criterio amplio CCP, fracción > 15 días computa como mes completo (ej: 3m 21d = 4 meses)
+  // En criterio estricto, solo meses enteros cumplidos (ej: 3m 21d = 3 meses)
+  const mesesFracciones =
+    escenario === 'amplio_ccp'
+      ? tiempo.mesesComputablesFracciones
+      : tiempo.mesesEstrictoFracciones;
 
-  // Vacaciones Fraccionadas: CCP prevé 34 días de vacaciones anuales convencionales (LOTTT otorga 15)
-  const baseDiasVacacionesAnuales = parametros.diasVacacionesAnualesCCP || (esCasoCarlosMendoza ? 15 : 34);
+  // Vacaciones Fraccionadas: CCP prevé 34 días anuales convencionales (Art. 190 LOTTT mínimo 15d)
+  const baseDiasVacacionesAnuales = parametros.diasVacacionesAnualesCCP || 34;
   const diasVacaciones = round2((baseDiasVacacionesAnuales / 12) * mesesFracciones);
   const totalVacaciones = round2(diasVacaciones * salarioNormalDiario);
 
-  // Bono Vacacional Fraccionado: Días de bono CCP (45 a 60 días, habitual 55) / 12 * meses
+  // Bono Vacacional Fraccionado: Días de bono CCP (habitual 55 días) / 12 * meses
   const diasBonoVacacional = round2((diasBonoVac / 12) * mesesFracciones);
   const totalBonoVacacional = round2(diasBonoVacacional * salarioNormalDiario);
 
@@ -258,36 +324,31 @@ export function calcularLiquidacion(
   // Total Asignaciones Brutas
   const totalAsignaciones = round2(
     montoPrestacionesAplicado +
-    (incluyeInteresesEnTotal ? interesesAcumuladosArt143 : 0) +
-    totalVacaciones +
-    totalBonoVacacional +
-    totalUtilidades +
-    totalBonifFiniquito +
-    montoIndemnizacionArt92
+      (incluyeInteresesEnTotal ? interesesAcumuladosArt143 : 0) +
+      totalVacaciones +
+      totalBonoVacacional +
+      totalUtilidades +
+      totalBonifFiniquito +
+      montoIndemnizacionArt92
   );
 
   // 8. Deducciones Legales Obligatorias
+  // Fórmula oficial IVSS / SPF (Tope 5 Salarios Mínimos Nacionales = 650,00 Bs/mes -> 150,00 Bs/semana):
+  // Se cotizan los lunes calendario correspondientes al mes de egreso (4 lunes en Nov 2026 al 24/11/2026)
   const salarioMinimo = parametros.salarioMinimoUrbano || 130;
-  const tope5SM = 5 * salarioMinimo; // 650 Bs
+  const tope5SM = 5 * salarioMinimo; // 650,00 Bs. mensual
+  const salarioMensualReal = salarioNormalDiario * 30;
+  const topeAplicado = salarioMensualReal >= tope5SM;
+  const baseMensualCotizable = Math.min(salarioMensualReal, tope5SM);
+  const baseSemanalReal = round2((baseMensualCotizable * 12) / 52); // 150,00 Bs./semana cuando aplica el tope
+  const lunesMesEgreso = contarLunesMesEgreso(trabajador.fechaIngreso, trabajador.fechaEgreso);
 
-  let ivssTotal = round2(salarioNormalDiario * 0.04);
-  if (esCasoCarlosMendoza) {
-    ivssTotal = 450.00;
-  } else {
-    const baseIVSS = Math.min(salarioNormalDiario * 30, tope5SM);
-    ivssTotal = round2(baseIVSS * 0.04 * (mesesFracciones > 1 ? 1 : 1));
-    if (ivssTotal === 0 || ivssTotal > 1500) ivssTotal = round2(salarioNormalDiario * 0.04);
-  }
+  const ivssTotal = round2(baseSemanalReal * 0.04 * lunesMesEgreso); // 150 * 4% = 6,00 Bs/semana
+  const spfTotal = round2(baseSemanalReal * 0.005 * lunesMesEgreso); // 150 * 0.5% = 0,75 Bs/semana
 
-  let spfTotal = round2(ivssTotal * (0.5 / 4));
-  if (esCasoCarlosMendoza) {
-    spfTotal = 56.25;
-  }
-
-  let faovTotal = round2((totalVacaciones + totalBonoVacacional + totalUtilidades + totalBonifFiniquito) * 0.01);
-  if (esCasoCarlosMendoza) {
-    faovTotal = 1130.00;
-  }
+  // FAOV (1% sobre devengos salariales de liquidación: vacaciones, bono vacacional, utilidades, finiquito)
+  const baseFaov = round2(totalVacaciones + totalBonoVacacional + totalUtilidades + totalBonifFiniquito);
+  const faovTotal = round2(baseFaov * 0.01);
 
   // INCES: 0.5% EXCLUSIVAMENTE sobre Utilidades Fraccionadas (Art. 14 Ley del INCES)
   const incesTotal = round2(totalUtilidades * 0.005);
@@ -305,7 +366,6 @@ export function calcularLiquidacion(
 
   const netoAPagar = round2(totalAsignaciones - totalDeducciones);
   const netoEnLetras = numeroALetras(netoAPagar, 'BOLÍVARES');
-  const tasaUSD = parametros.tasaCambioBCV_USD || 66.80;
   const netoEquivalenteUSD = round2(netoAPagar / tasaUSD);
 
   // Control de Anticipos Art. 144 LOTTT (Límite legal del 75%)
@@ -324,7 +384,12 @@ export function calcularLiquidacion(
       const diffDays = Math.floor((dDisp.getTime() - dEgreso.getTime()) / (1000 * 60 * 60 * 24));
       if (diffDays > 5) {
         diasMora = diffDays - 5;
-        const tasaDiariaMora = (32.5 / 100) / 360;
+        const mesEgresoClave = trabajador.fechaEgreso.slice(0, 7);
+        const tasaEgresoObj = parametros.tasasBCV?.find((t) => t.mes === mesEgresoClave);
+        const tasaMoraAnual = tasaEgresoObj
+          ? (tasaEgresoObj.tasaActiva || tasaEgresoObj.tasaPromedio)
+          : 47.46;
+        const tasaDiariaMora = tasaMoraAnual / 100 / 360;
         interesMoratorioLegalLOTTT = round2(netoAPagar * tasaDiariaMora * diasMora);
         observacionJuridica = `Transcurrieron ${diasMora} días hábiles/continuos en mora. Según la doctrina de Sandrea Pozo (2017), a las contratistas NO les aplica la sanción punitiva de 3 salarios diarios de la nómina directa PDVSA, sino los intereses moratorios de ley (Art. 143 LOTTT y Art. 92 CRBV), blindando a la empresa ante demandas infladas.`;
       }
@@ -386,7 +451,8 @@ export function calcularLiquidacion(
     indemnizacionDespidoArt92: {
       aplica: aplicaArt92,
       monto: montoIndemnizacionArt92,
-      fundamentoLegal: 'Indemnización equivalente a las prestaciones sociales por terminación injustificada (Art. 92 LOTTT)',
+      fundamentoLegal:
+        'Indemnización equivalente a las prestaciones sociales por terminación injustificada (Art. 92 LOTTT)',
     },
     controlAnticiposArt144: {
       montoFondoAcumulado: montoGarantia,
@@ -401,18 +467,22 @@ export function calcularLiquidacion(
       ivss: {
         porcentaje: 4,
         base: salarioNormalDiario,
-        topeAplicado: true,
+        topeAplicado,
+        semanasCotizadas: lunesMesEgreso,
+        baseSemanal: baseSemanalReal,
         total: ivssTotal,
       },
       spf: {
         porcentaje: 0.5,
         base: salarioNormalDiario,
-        topeAplicado: true,
+        topeAplicado,
+        semanasCotizadas: lunesMesEgreso,
+        baseSemanal: baseSemanalReal,
         total: spfTotal,
       },
       faov: {
         porcentaje: 1,
-        base: totalAsignaciones - montoPrestacionesAplicado,
+        base: baseFaov,
         total: faovTotal,
       },
       inces: {

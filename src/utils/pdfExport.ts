@@ -29,7 +29,7 @@ export function exportOfficialPDF(expediente: ExpedienteLiquidacion): boolean {
     doc.setFontSize(8.5);
     doc.setFont('Helvetica', 'normal');
     doc.text(
-      `RIF: ${contratista.rif}   |   CONTRATO PEQUIVEN / PDVSA N°: ${contratista.numeroContrato}`,
+      `RIF: ${contratista.rif}   |   DIRECCIÓN: ${(contratista.direccion || 'AV. VIA HOSPITAL RASETTI, BARCELONA, ANZOATEGUI').toUpperCase()}`,
       pw / 2,
       y,
       { align: 'center' }
@@ -230,20 +230,20 @@ export function exportOfficialPDF(expediente: ExpedienteLiquidacion): boolean {
     const itemsDeduc = [
       {
         cod: '501',
-        desc: 'Retención IVSS Seguro Social (4% s/ Salario Normal)',
-        base: '4,00% (Tope 5 SM)',
+        desc: 'Retención IVSS Seguro Social (4% · Tope 5 SM)',
+        base: `4,00% (${calculo.deducciones.ivss.semanasCotizadas || 4} lun × Bs. ${formatBs((calculo.deducciones.ivss.baseSemanal || 150) * 0.04)})`,
         total: formatBs(calculo.deducciones.ivss.total),
       },
       {
         cod: '502',
         desc: 'Retención Régimen Prestacional Empleo (0.5% SPF)',
-        base: '0,50% (Tope 5 SM)',
+        base: `0,50% (${calculo.deducciones.spf.semanasCotizadas || 4} lun × Bs. ${formatBs((calculo.deducciones.spf.baseSemanal || 150) * 0.005)})`,
         total: formatBs(calculo.deducciones.spf.total),
       },
       {
         cod: '503',
         desc: 'Retención FAOV / BANAVIH (1% s/ Asignaciones Base)',
-        base: '1,00%',
+        base: `1,00% s/ Bs. ${formatBs(calculo.deducciones.faov.base)}`,
         total: formatBs(calculo.deducciones.faov.total),
       },
       {
@@ -283,15 +283,23 @@ export function exportOfficialPDF(expediente: ExpedienteLiquidacion): boolean {
 
     // NET TO PAY HIGHLIGHT BOX
     doc.setFillColor(30, 58, 138); // Deep Navy Blue
-    doc.rect(margin, y, pw - margin * 2, 10.5, 'F');
+    doc.rect(margin, y, pw - margin * 2, 13.5, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(9);
     doc.setFont('Helvetica', 'bold');
-    doc.text('NETO TOTAL A LIQUIDAR Y PAGAR AL TRABAJADOR:', margin + 4, y + 6.8);
+    doc.text('NETO TOTAL A LIQUIDAR Y PAGAR AL TRABAJADOR:', margin + 4, y + 6.2);
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.text(
+      `Ref. BCV: USD $${formatBs(calculo.netoEquivalenteUSD)} @ ${formatBs(expediente.parametrosSnapshot.tasaCambioBCV_USD, 4)} Bs/USD`,
+      margin + 4,
+      y + 10.8
+    );
+    doc.setFont('Helvetica', 'bold');
     doc.setFontSize(12.5);
-    doc.text(`Bs. ${formatBs(calculo.netoAPagar)}`, pw - margin - 4, y + 7.2, { align: 'right' });
+    doc.text(`Bs. ${formatBs(calculo.netoAPagar)}`, pw - margin - 4, y + 8.4, { align: 'right' });
 
-    y += 13.5;
+    y += 16.5;
     doc.setTextColor(0, 0, 0);
 
     // Son en letras
@@ -303,7 +311,7 @@ export function exportOfficialPDF(expediente: ExpedienteLiquidacion): boolean {
     // Statement text
     doc.setFontSize(6.2);
     doc.setFont('Helvetica', 'normal');
-    const statementText = `Yo, ${trabajador.nombres} ${trabajador.apellidos}, titular de la C.I. N° ${trabajador.cedula}, declaro que he recibido de la empresa ${contratista.razonSocial}, a mi entera satisfacción, la cantidad de Bs. ${formatBs(calculo.netoAPagar)} por concepto de pago total y definitivo de mis Prestaciones Sociales, Intereses de Prestaciones Sociales acumulados, Vacaciones Fraccionadas, Bono Vacacional Fraccionado, Utilidades Fraccionadas y demás beneficios contractuales derivados de la culminación de mi contrato de trabajo por obra determinada en la industria petrolera y petroquímica, conforme a la LOTTT y la Convención Colectiva Petrolera, otorgando formal y definitivo finiquito y constancia de solvencia laboral.`;
+    const statementText = `Yo, ${trabajador.nombres} ${trabajador.apellidos}, titular de la C.I. N° ${trabajador.cedula}, declaro que he recibido de la empresa ${contratista.razonSocial} (RIF ${contratista.rif}, domicilio: ${contratista.direccion || 'AV. VIA HOSPITAL RASETTI, BARCELONA, ANZOATEGUI'}), a mi entera satisfacción, la cantidad de Bs. ${formatBs(calculo.netoAPagar)} por concepto de pago total y definitivo de mis Prestaciones Sociales, Intereses de Prestaciones Sociales acumulados, Vacaciones Fraccionadas, Bono Vacacional Fraccionado, Utilidades Fraccionadas y demás beneficios contractuales derivados de la culminación de mi contrato de trabajo por obra determinada en la industria petrolera y petroquímica, conforme a la LOTTT y la Convención Colectiva Petrolera, otorgando formal y definitivo finiquito y constancia de solvencia laboral.`;
     const lines = doc.splitTextToSize(statementText, pw - margin * 2);
     doc.text(lines, margin, y);
 
@@ -401,7 +409,7 @@ export function openPrintableWindow(elementId: string): boolean {
               window.focus();
               window.print();
             }, 300);
-          </script>
+          ${'<'}/script>
         </body>
       </html>
     `);
