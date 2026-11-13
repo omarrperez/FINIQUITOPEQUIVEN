@@ -1,0 +1,195 @@
+Especificación Técnica y Funcional: Aplicación de Liquidación de Prestaciones Sociales para Contratistas Petroleras en Venezuela
+1. Pilares Jurídicos y Normativa de Liquidación de Prestaciones Sociales en Contratistas de PDVSA y Pequiven
+Al 11 de noviembre de 2026, el diseño de una plataforma automatizada para el cálculo y liquidación de prestaciones sociales en el sector petrolero y petroquímico venezolano exige una arquitectura de software dotada de un rigor normativo absoluto. Las empresas contratistas que ejecutan obras o prestan servicios inherentes o conexos para Petróleos de Venezuela, S.A. (PDVSA) y Petroquímica de Venezuela, S.A. (Pequiven) operan bajo un esquema regulatorio caracterizado por la convergencia de marcos legales de orden público y convenios colectivos altamente especializados. En este entorno, la coexistencia de la legislación laboral sustantiva y la Convención Colectiva Petrolera (CCP) genera una estructura de pasivos laborales de elevada cuantía e hiper-sensibilidad legal. Por ello, la automatización del proceso de finiquito no constituye una mera mejora operativa de la nómina, sino una necesidad arquitectónica estratégica destinada a garantizar la auditabilidad de las operaciones, prevenir objeciones en inspecciones del Ministerio del Poder Popular para el Proceso Social de Trabajo (MINTRA) o de las gerencias de Relaciones Laborales de PDVSA/Pequiven, y blindar a las contratistas ante contingencias financieras por morosidad o errores de interpretación jurídica.
+El marco regulatorio aplicable a las contratistas de la industria petrolera y petroquímica se fundamenta en la articulación de la Ley Orgánica del Trabajo, los Trabajadores y las Trabajadoras (LOTTT) y la Convención Colectiva Petrolera (CCP) vigente, suscrita con la Federación Unitaria de Trabajadores y Trabajadoras del Petróleo, del Gas, sus Similares y Derivados (FUPTV). La evaluación de este doble marco normativo evidencia una expansión sustancial en la cuantía de las obligaciones patronales en comparación con el régimen de la economía común. Mientras la LOTTT establece los pisos mínimos e inderogables de protección social, la CCP homologa tabuladores salariales superiores e incrementa las alícuotas devengadas por los trabajadores, expandiendo la base imponible del Salario Integral Petrolero y multiplicando los haberes contractuales al término del contrato.
+Parámetro / Beneficio	Disposición General LOTTT	Beneficio Convención Colectiva Petrolera (CCP)	Impacto en la Estructuración del Pasivo
+Días de Utilidades	Mínimo legal de 30 días y máximo de 4 meses (120 días) por año fiscal (Art. 131).	Promedio garantizado de 120 a 180 días anuales según acuerdos y actas homologadas.	Expande exponencialmente la alícuota diaria de utilidades dentro de la matriz del Salario Integral.
+Bono Vacacional	15 días más 1 día adicional acumulativo por cada año de servicio (Art. 192).	45 a 60 días de salario básico según estipulaciones contractuales de la industria.	Eleva sensiblemente la alícuota de bono vacacional que incide en el Salario Integral de antigüedad.
+Primas de Guardia y Jornada	Recargos estándar por horas extras y trabajo nocturno ordinario.	Guardias rotativas convencionales (5x2, 1x1, 7x7) y regímenes especiales de hidrografía/offshore (2x4, 3x6, 5x10).	Complejiza la determinación del Salario Normal al integrar primas fijas y variables recurrentes.
+Tiempo de Viaje (TV)	Pagado únicamente por estipulación o cuando el transporte patronal insuma tiempo excesivo.	Pago obligatorio del tiempo de transporte e incorporación formal como alícuota regular al salario.	Incrementa directamente el Salario Normal Diario base sobre el cual se calculan vacaciones y utilidades.
+1.1. Marco Legal Laboral Sustantivo (LOTTT y CCP)
+El motor lógico de la aplicación debe parametrizar e interpretar con exactitud los preceptos sustantivos consagrados en la LOTTT y las cláusulas socioeconómicas de la CCP:
+•	Garantía Trimestral vs. Retroactividad de Prestaciones Sociales (Arts. 141 y 142 LOTTT): El sistema debe automatizar el principio de intangibilidad y la doble metodología de cálculo al finalizar la relación laboral:
+o	Literal A (Garantía Trimestral): Abono trimestral de 15 días de salario por cada trimestre vencido, determinado sobre la base del último salario integral devengado en el mes respectivo, sumando 2 días adicionales por cada año de servicio a partir del segundo año (acumulables hasta 30 días).
+o	Literal C (Retroactividad): Cálculo de la antigüedad al término del contrato a razón de 30 días de salario integral por cada año de servicio o fracción superior a 6 meses, determinado con el último salario integral devengado por el trabajador.
+o	Literal D (Selección Favorable): El backend debe comparar de forma automática la sumatoria de la garantía acumulada (literales A y B) más sus intereses frente al monto de la retroactividad (literal C), e imputar al recibo únicamente el valor cuantitativamente superior.
+•	Intereses sobre Prestaciones Sociales y Fideicomiso (Art. 143 LOTTT): Los saldos de garantía acumulados mensualmente devengan intereses calculados a la tasa activa fijada por el Banco Central de Venezuela (BCV), o a la tasa promedio entre la activa y la pasiva si la empresa ha constituido fideicomiso o fondo de prestaciones.
+•	Vacaciones y Bono Vacacional Fraccionados (Arts. 190 y 192 LOTTT / CCP): Al producirse el egreso antes de cumplir el año de servicio, se liquida la parte proporcional de los días de descanso y del bono vacacional contractual (tomando como base la escala de 45 a 60 días de salario básico fijada en la CCP), según los meses completos laborados.
+•	Utilidades Fraccionadas (Art. 131 LOTTT / CCP): Liquidación proporcional de la bonificación de fin de año por los meses completos trabajados en el ejercicio fiscal, sobre la base de los días contractuales petroleros (120 a 180 días de salario).
+•	Terminación por Culminación de Contrato / Fin de Obra (Arts. 83 y 87 LOTTT): Para el personal contratado por obra determinada o tiempo determinado en proyectos de PDVSA o Pequiven, la culminación del plazo o de la fase contratada extingue la relación de trabajo de forma natural. En estos casos, no aplica la indemnización por despido injustificado del Artículo 92 de la LOTTT, sin perjuicio del pago de la Bonificación Especial de Finiquito estipulada en la CCP.
+•	Variaciones de Jornada y Regímenes Especiales de Guardia: En adición a los turnos rotativos convencionales (5x2, 1x1, 7x7), el sistema debe computar las alícuotas salariales derivadas de esquemas operacionales especializados previstos en la industria, tales como las jornadas de hidrografía y perforación costafuera/offshore (2x4, 3x6 y 5x10), donde la acumulación de descansos compensatorios y remuneraciones adicionales afecta la base de cálculo del Salario Normal e Integral.
+1.2. Salario Integral Petrolero y Deducciones Legales Obligatorias
+El Salario Integral Petrolero representa el parámetro económico sobre el cual se liquida la garantía y retroactividad de las prestaciones sociales. Se construye adicionando al salario básico del tabulador petrolero (definido por el nivel y código de cargo) las alícuotas diarias de bono vacacional contractual, utilidades contractuales y los conceptos salariales regulares y permanentes devengados, tales como primas de guardia rotativa (5x2, 1x1, 7x7, 2x4, 3x6, 5x10), la alícuota por Tiempo de Viaje (TV) y los descansos compensatorios pagados.
+Sobre los haberes brutos calculados en el finiquito, la aplicación debe ejecutar con absoluta precisión las retenciones laborales obligatorias estipuladas por la normativa jurídica venezolana:
+•	Instituto Venezolano de los Seguros Sociales (IVSS): Retención laboral del 4% calculada estrictamente sobre el salario normal devengado por conceptos salariales en la liquidación, sujeta al tope legal imperativo de 5 salarios mínimos urbanos mensuales.
+•	Régimen Prestacional de Empleo (Paro Forzoso / SPF): Retención laboral del 0.5% sobre el salario normal devengado, acotada igualmente al tope legal de 5 salarios mínimos urbanos mensuales.
+•	Fondo de Ahorro Obligatorio para la Vivienda (FAOV / BANAVIH): Retención laboral del 1% aplicable sobre el salario integral del trabajador (incluyendo asignaciones ordinarias, alícuotas contractuales y pagos por descanso), sin tope salarial.
+•	Instituto Nacional de Capacitación y Educación Socialista (INCES): Retención laboral del 0.5% aplicada de forma exclusiva sobre los montos pagados por concepto de utilidades o utilidades fraccionadas al momento de la liquidación, en estricto cumplimiento del Artículo 14 de la Ley del INCES. Se especifica formalmente que esta retención no aplica sobre el salario regular, las vacaciones, la garantía de antigüedad ni sobre la retroactividad de las prestaciones sociales.
+•	Impuesto Sobre la Renta (ISLR): Retención porcentual calculada según la alícuota estipulada en la planilla ARI del trabajador (Decreto 1808), aplicable de forma restrictiva sobre las remuneraciones gravables. Se remarca la exención fiscal de las indemnizaciones por prestaciones sociales (antigüedad e intereses del Art. 143), las cuales no forman parte de la base imponible del ISLR.
+1.3. Régimen de Mora y Tratamiento Diferencial en la Industria
+La morosidad en el pago de la liquidación ha sido objeto de exhaustivos análisis doctrinarios y jurisprudenciales dentro de la industria petrolera venezolana, destacándose las investigaciones de Sandrea Pozo (2017). Dichos estudios examinan de manera crítica la vigencia de los principios rectores del Derecho del Trabajo —tales como la intangibilidad, la progresividad, la condición más beneficiosa y el principio protectorio en sus variantes in dubio pro operario y norma más favorable— frente a la dualidad procedimental observada en el sector energético.
+Históricamente, las convenciones colectivas petroleras han consagrado un esquema punitivo diferenciado en caso de mora al finalizar el contrato. Para los trabajadores de la nómina directa de la corporación estatal (PDVSA), la CCP estatuye una penalización moratoria equivalente a tres (3) salarios normales diarios por cada día de retraso en el pago de la liquidación de prestaciones sociales. Por el contrario, para los trabajadores que laboran bajo la dependencia de empresas contratistas y subcontratistas, la extemporaneidad en el pago no activa la sanción de los 3 salarios diarios, sino que se rige por el régimen ordinario de intereses moratorios previstos en la LOTTT (Art. 143, en consonancia con el Art. 92 de la Constitución de la República Bolivariana de Venezuela).
+Como evidencia Sandrea Pozo (2017), esta bifurcación procedimental genera una desigualdad cualitativa entre trabajadores que prestan servicios en una misma industria bajo el paraguas de la misma CCP, colisionando de manera frontal con el principio constitucional de igualdad y no discriminación. Ante este escenario, la aplicación de software debe constituirse en un mecanismo imparcial de auditoría temporal, incorporando un módulo de trazabilidad cronológica que registre la fecha exacta de culminación del contrato y la fecha de puesta a disposición efectiva de los fondos. Este registro auditable permite determinar con exactitud si proceden intereses moratorios legales y protege a las empresas contratistas ante reclamos judiciales infundados o exigencias de homologación de penas convencionales no pactadas explícitamente en sus contratos de obra.
+La traslación de este intrincado marco normativo, los esquemas de retención y las particularidades doctrinales de la morosidad hacia una herramienta informática requiere la construcción de un modelo de datos estructurado, de alta precisión decimal y auditable.
+2. Metodología de Cálculo, Estructuración del Sistema y Modelo Estandarizado de Recibo de Liquidación
+La automatización de las liquidaciones en contratistas petroleras exige proyectar una arquitectura de software organizada en cuatro capas funcionales interconectadas. Esta estructura elimina de forma absoluta la manipulación manual de variables matemáticas, previene fallas en la actualización de las tasas de interés y garantiza la auditabilidad inmediata del expediente de finiquito ante los inspectores del MINTRA y los auditores de PDVSA y Pequiven.
+La clara delimitación de responsabilidades entre los parámetros maestros del sistema, los datos filiatorios del contrato, el motor de cómputo del backend y los componentes de visualización asegura la escalabilidad de la plataforma. Este diseño permite que despachos de contaduría pública e ingeniería contable administren en forma paralela la nómina de múltiples contratistas, absorbiendo variaciones en los tabuladores salariales o en los avisos del BCV sin comprometer la integridad histórica de los cálculos archivados.
+2.1. Arquitectura de Datos en Cuatro Capas para Sistemas Automatizados
+El procesamiento informático de las liquidaciones se estructura mediante la siguiente arquitectura numerada de cuatro capas:
+1.	Capa 1: Parámetros Maestros: Módulo global que almacena las variables institucionales, macroeconómicas y convencionales:
+o	Matriz histórica de tasas de interés activas y promedio fijadas por el Banco Central de Venezuela (BCV) para la liquidación mensual de intereses del Art. 143 de la LOTTT.
+o	Tabulador salarial petrolero vigente estructurado por códigos de cargo, niveles de clasificación y salario básico diario.
+o	Valor del salario mínimo urbano vigente utilizado para calcular los topes de retención del IVSS y Paro Forzoso (5 salarios mínimos).
+o	Días convencionales de utilidades (120 a 180 días) y bono vacacional (45 a 60 días) acordados en la CCP.
+2.	Capa 2: Empleado y Contrato: Módulo de captura e ingesta de variables operativas del trabajador:
+o	Datos filiatorios de la empresa contratista (Razón Social, RIF, N° de Contrato PDVSA/Pequiven, Denominación de la Obra o Servicio).
+o	Ficha del trabajador (Cédula de identidad, Nombres y Apellidos, Cargo según Tabulador CCP, Turno de guardia asignado: 5x2, 1x1, 7x7, 2x4, 3x6, 5x10, y alícuota por Tiempo de Viaje).
+o	Cronología laboral: Fecha de ingreso y fecha de egreso, registrando la causa de terminación (Culminación de Contrato / Fin de Obra).
+3.	Capa 3: Motor de Cálculo Backend (Motor Numérico de Alta Precisión): Núcleo lógico del sistema responsable de procesar los algoritmos de liquidación. Especificación Técnica de Computación Numérica: Para prevenir desvíos por redondeo acumulativo (rounding drift) y pérdida de precisión durante el cálculo multi-anual de intereses sobre saldos mensuales del Art. 143 de la LOTTT, el backend debe prescindir absolutamente de tipos de datos aritméticos de coma flotante (floating-point binario como float o double). En su lugar, el backend debe implementar representaciones decimales de coma fija o tipos numéricos de precisión arbitraria (tales como Decimal en Python/C# o BigDecimal en Java) utilizando un estándar mínimo de 64 bits con precisión interna de 6 a 8 decimales durante las operaciones intermedias, realizando el redondeo al centésimo (2 decimales) únicamente en la capa final de presentación del recibo.
+o	Cómputo exacto del tiempo de servicio expresado en Años, Meses y Días.
+o	Determinación del Salario Normal Diario y Salario Integral Diario con alícuotas de utilidades, bono vacacional y primas de guardia/TV.
+o	Generación de la matriz mensualizada de Garantía (15 días trimestrales + días adicionales) y cálculo del interés acumulado a tasa BCV.
+o	Cálculo del régimen retroactivo (30 días por año al último salario integral) y ejecución autoejecutable de la comparación del Art. 142 literal D de la LOTTT.
+o	Cómputo de haberes fraccionados y aplicación estricta de deducciones legales (IVSS, SPF, FAOV e INCES al 0.5% exclusivamente sobre utilidades fraccionadas).
+4.	Capa 4: Capa de Presentación / Recibo: Componente visual que renderiza los resultados del backend en un formato estandarizado, desglosando asignaciones, deducciones, neto a pagar e integrando el Acta de Finiquito con plena validez legal.
+2.2. Modelo Matemático Comparativo: Garantía Trimestral vs. Retroactividad (Art. 142 LOTTT)
+El motor numérico del backend ejecuta de forma estricta las siguientes formulaciones en bloque Markdown para determinar la obligación de antigüedad:
+1. Salario Integral Diario Petrolero: \text{Salario Integral Diario} = \text{Salario Diario Básico} + \left(\frac{\text{Días Utilidades CCP} \times \text{Salario Básico}}{360}\right) + \left(\frac{\text{Días Bono Vacacional CCP} \times \text{Salario Básico}}{360}\right) + \text{Primas Regulares}
+2. Garantía Trimestral de Prestaciones Sociales (Art. 142, Literales A y B): \text{Monto Garantía Trimestral} = \sum_{t=1}^{n} \left( 15 \text{ días} \times \text{Salario Integral Diario}_{t} \right) + \left( \text{Días Adicionales (2 días/año, máx 30)} \times \text{Salario Integral Diario}_{\text{último}} \right)
+3. Retroactividad de Prestaciones Sociales (Art. 142, Literal C): \text{Monto Retroactivo} = 30 \text{ días} \times \text{Años de Servicio (o fracción > 6 meses)} \times \text{Último Salario Integral Diario}
+4. Regla de Selección Automática del Monto Favorable (Art. 142, Literal D): \text{Monto Prestaciones a Cancelar} = \max\left( \left( \text{Monto Garantía Trimestral} + \text{Intereses Acumulados Art. 143} \right), \text{Monto Retroactivo} \right)
+Nota Técnica: Los intereses acumulados del Art. 143 LOTTT devengados por la garantía trimestral se suman a favor del trabajador únicamente cuando la opción de la Garantía (Literal A + B) resulta ser el monto cuantitativamente superior al compararse con la Retroactividad (Literal C).
+2.3. Formato y Ejemplo de Recibo Lleno con Acta de Finiquito Integrada
+A continuación se inserta de forma íntegra el recibo de liquidación en formato de bloque de código de texto plano (text), procesado con las bases exactas del trabajador Carlos Eduardo Mendoza Pérez:
+===================================================================================================
+                             CONTRATISTA PETROLERA DE VENEZUELA, C.A.
+                                        RIF: J-30999888-1
+                            CONTRATO PDVSA / PEQUIVEN N°: 4600098765
+                       OBRA: MANTENIMIENTO INTEGRAL DE PLANTAS Y OLEODUCTOS
+===================================================================================================
+                                LIQUIDACIÓN DE PRESTACIONES SOCIALES
+                                POR CULMINACIÓN DE CONTRATO LABORAL
+===================================================================================================
+DATOS DEL TRABAJADOR:
+Trabajador: CARLOS EDUARDO MENDOZA PÉREZ             C.I.: V-16.789.012
+Cargo: MECÁNICO DE MANTENIMIENTO INDUSTRIAL (Tabulador CCP - Nivel 4)
+Fecha de Ingreso: 15/01/2026                        Fecha de Egreso: 11/11/2026
+Tiempo de Servicio: 0 Años, 9 Meses, 27 Días        Causa de Egreso: Culminación de Contrato (Fin de Obra)
+
+BASES SALARIALES DE CÁLCULO:
+Salario Básico Diario: Bs. 450,00                   Salario Normal Diario: Bs. 520,00 (Inc. Tiempo Viaje)
+Días de Utilidades Anuales CCP: 120 días            Alícuota Diaria Utilidades: Bs. 150,00
+Días Bono Vacacional CCP: 45 días                   Alícuota Diaria Bono Vacacional: Bs. 56,25
+Salario Integral Diario para Prestaciones: Bs. 726,25
+===================================================================================================
+CÓD.  CONCEPTOS DE ASIGNACIONES (HABERES)                BASE / DÍAS        VALOR UNIT.      TOTAL (Bs.)
+---------------------------------------------------------------------------------------------------
+101   Prestaciones Sociales (Garantía Art. 142-a LOTTT)   45,00 Días         726,25         32.681,25
+      [Comparativa Retroactividad Art. 142-c: 30 Días x 726,25 = Bs. 21.787,50 -> Aplica Garantía]
+102   Intereses s/ Prestaciones Sociales (Art. 143 LOTTT) Saldo Acum.       Tasas BCV        2.450,80
+103   Vacaciones Fraccionadas (Art. 190 LOTTT / CCP)      12,50 Días         520,00          6.500,00
+104   Bono Vacacional Fraccionado (Art. 192 LOTTT / CCP)  37,50 Días         520,00         19.500,00
+105   Utilidades Fraccionadas (Art. 131 LOTTT / CCP)     100,00 Días         520,00         52.000,00
+106   Bonificación Especial Culminación Contrato CCP      15,00 Días         520,00          7.800,00
+---------------------------------------------------------------------------------------------------
+TOTAL ASIGNACIONES:                                                                   Bs. 120.932,05
+===================================================================================================
+CÓD.  CONCEPTOS DE DEDUCCIONES DE LEY                     PORCENTAJE / BASE                  TOTAL (Bs.)
+---------------------------------------------------------------------------------------------------
+501   Retención IVSS Seguro Social (4% s/ Salario Normal) 4,00% (Tope 5 SM)                    450,00
+502   Retención Régimen Prestacional Empleo (0.5% SPF)    0,50% (Tope 5 SM)                     56,25
+503   Retención FAOV / BANAVIH (1% s/ Asignaciones Base)  1,00%                              1.130,00
+504   Retención INCES s/ Utilidades Fraccionadas (0.5%)   0,50% s/ Bs. 52.000,00               260,00
+505   Anticipos de Prestaciones Sociales Otorgados        Monto pagado previamente               0,00
+---------------------------------------------------------------------------------------------------
+TOTAL DEDUCCIONES:                                                                      Bs. 1.896,25
+===================================================================================================
+NETO TOTAL A LIQUIDAR Y PAGAR AL TRABAJADOR:                                          Bs. 119.035,80
+===================================================================================================
+SON: CIENTO DIECINUEVE MIL TREINTA Y CINCO BOLÍVARES CON 80/100 CÉNTIMOS.
+
+DECLARACIÓN DE FINIQUITO Y CONFORMIDAD:
+Yo, CARLOS EDUARDO MENDOZA PÉREZ, titular de la Cédula de Identidad N° V-16.789.012, declaro que he
+recibido de la empresa CONTRATISTA PETROLERA DE VENEZUELA, C.A., a mi entera satisfacción, la cantidad
+de Bs. 119.035,80 por concepto de pago total y definitivo de mis Prestaciones Sociales, Intereses,
+Vacaciones Fraccionadas, Bono Vacacional Fraccionado, Utilidades Fraccionadas y demás beneficios
+contractuales derivados de la culminación de mi contrato de trabajo por obra determinada al servicio de
+la industria petrolera. Declaro que nada se me adeuda por concepto salarial ni indemnizatorio alguno.
+
+
+____________________________________                  ____________________________________
+    POR LA EMPRESA CONTRATISTA                                EL TRABAJADOR
+           C.I. / Sello                                    C.I. V-16.789.012
+                                                           Huella Dactilar: [  Pulgar Der.  ]
+Establecida la metodología de cómputo y la estructura formal del recibo de finiquito, corresponde evaluar las aplicaciones informáticas presentes en el mercado venezolano a fin de diagnosticar su nivel de respuesta ante estas requerimientos.
+3. Diagnóstico Comparativo del Software de Nómina Actual y Prácticas Existentes en el Mercado Venezolano
+El diagnóstico del mercado informático en Venezuela expone un desacople significativo entre las herramientas de nómina tradicionales y las exigencias contables de las contratistas petroleras. Durante décadas, las plataformas heredadas han gestionado adecuadamente la nómina ordinaria de la economía común; no obstante, exhiben severos vacíos operacionales al momento de liquidar contratos bajo los condicionantes socioeconómicos de la Convención Colectiva Petrolera.
+La evaluación sistemática de las herramientas dominantes revela deficiencias asociadas a la rigidez del software de escritorio, elevados costos de parametrización SQL y un uso extendido pero inseguro de hojas de cálculo caseras.
+Sistema / Solución	Puntos Fortes	Debilidades / Limitaciones	Nivel de Riesgo Operativo
+Profit Plus Nómina (Softech Consultores)	Parametrización avanzada mediante código SQL; reputación institucional en grandes estructuras corporativas.	Arquitectura cliente-servidor para Windows; interfaz rígida; la adaptación de la CCP requiere consultoría externa costosa.	Medio-Alto: Imposibilidad de ajustar reglas de contrato rápidamente sin asistencia técnica especializada.
+Saint Nómina (Saint de Venezuela)	Alta penetración en PYMES; acelerada configuración de nóminas LOTTT estándar; amplia red de soporte.	Inflexibilidad para modelar turnos petroleros (5x2, 1x1, TV); nula automatización de tasas del BCV; reportes predefinidos rígidos.	Alto: Inconsistencias en la liquidación de intereses del Art. 143 por falta de sincronización dinámica de indicadores.
+Galac Software (Nómina Laboral)	Estricto apego a normativas fiscales y parafiscales (IVSS, FAOV, INCES); reportes estandarizados.	Formato de licencia local por estación; carece de arquitectura SaaS en la nube multi-inquilino para despachos contables.	Medio: Ineficiencia en la transferencia de datos e interacción remota entre la contratista y los auditores.
+Plantillas en Excel (Desarrollo Casero)	Flexibilidad operacional absoluta; ajuste inmediato de variables contractuales sobre la marcha.	Inexistencia de pista de auditoría; elevado riesgo de fórmulas alteradas, manipulación manual e inconsistencias de cómputo.	Crítico (Utilizado por el 70% del sector): Alto rechazo de finiquitos en auditorías de PDVSA y vulnerabilidad legal.
+3.1. Evaluación de Sistemas Tradicionales y Hojas de Cálculo
+El análisis detallado de los sistemas de nómina comerciales visibiliza las siguientes brechas operativas:
+•	Profit Plus Nómina: Aunque su motor admite fórmulas complejas en lenguaje SQL, su arquitectura cliente-servidor obstaculiza el trabajo en campo y la colaboración en tiempo real entre la contratista y los auditores contables. Modificar la escala de alícuotas o añadir primas convencionales exige la contratación de consultoría técnica especializada.
+•	Saint Nómina: Orientado primordialmente a la nómina del sector comercio y servicios generales, presenta graves fallas de adaptación al Salario Integral Petrolero. La inclusión de la alícuota por Tiempo de Viaje y la rotación de jornadas (5x2, 1x1, 7x7) desborda la estructura de conceptos del sistema, forzando a procesar cálculos fuera de la aplicación.
+•	Galac Software: Ofrece una excelente gestión del cumplimiento parafiscal ante el IVSS y el BANAVIH, pero su rigidez en el módulo de egresos le impide desplegar la memoria de cálculo comparativa (Garantía vs. Retroactividad) exigida en el sector petrolero. Además, su arquitectura basada en licencias locales limita el trabajo colaborativo multi-cliente.
+•	Plantillas Caseras en Excel: A pesar de ser el método adoptado por el 70% de las contratistas pequeñas y medianas debido a su plasticidad operativa, constituye la práctica de mayor riesgo empresarial. Carecen de controles de seguridad de datos, se encuentran expuestas a la corrupción de fórmulas de alícuotas y no disponen de un histórico auditable que registre la actualización de las tasas activas del BCV.
+3.2. Brechas de Funcionalidad y Factores de Riesgo Operativo y Fiscal
+Las debilidades de los sistemas tradicionales generan tres factores de riesgo crítico para las empresas del sector petrolero:
+1.	Rechazo Sistemático de Finiquitos en Auditorías de PDVSA y MINTRA: Las gerencias de Relaciones Laborales de PDVSA y Pequiven devuelven de inmediato los expedientes de liquidación que no presentan un desglose comparativo transparente y paralelo de la antigüedad. Causa del Rechazo: El protocolo de auditoría laboral exige una memoria de cálculo explícita que exponga, en columnas o tarjetas independientes, el cómputo de la Garantía Trimestral más Intereses (Literal A + Art. 143) frente al recálculo de la Retroactividad (Literal C). Los sistemas tradicionales entregan únicamente el resultado final, lo que paraliza la aprobación de los finiquitos, demorando los pagos y exponiendo a las contratistas a reclamos por mora e intereses penales.
+2.	Errores en Retenciones Parafiscales y Fiscales (INCES e ISLR): Existe una recurrente praxis errónea al calcular la retención del INCES sobre el total del haber bruto o sobre la garantía de antigüedad, vulnerando el Artículo 14 de la Ley del INCES (el cual restringe la retención del 0.5% exclusivamente a las utilidades fraccionadas). Paralelamente, la inclusión errada de las indemnizaciones de antigüedad e intereses en la base imponible del ISLR genera distorsiones fiscales y reclamos por parte de los trabajadores.
+3.	Pérdidas Financieras por Omisión o Transcripción Manual de Tasas del BCV: La actualización manual de las tasas activas y promedio fijadas por el BCV para la liquidación de intereses del Art. 143 LOTTT conduce a errores de transcripción o desfases temporales. Estos fallos alteran los saldos acumulados de los trabajadores, generando pasivos ocultos que emergen en inspecciones del MINTRA o demandas laborales.
+El diagnóstico de la oferta tecnológica existente sustenta la necesidad de desarrollar una solución concebida para la realidad de la industria, convirtiendo los fallos detectados en especificaciones directas de producto.
+4. Análisis de Necesidades Reales de Usuarios y Oportunidades de Innovación
+El desarrollo de una plataforma informática de alto valor debe fundamentarse en la captura sistemática de la "voz del usuario": contadores públicos, administradores de nómina y gerentes de relaciones laborales de contratistas petroleras. El análisis de foros profesionales, mesas de trabajo contables e interacciones operativas en el sector energético revela que las mayores ineficiencias provienen de la falta de automatización normativa y de la desconexión tecnológica entre las contratistas y las corporaciones contratantes (PDVSA / Pequiven).
+Al estructurar estos requerimientos cualitativos, se transforman las dificultades operativas del sector en una matriz de oportunidades tecnológicas para el posicionamiento del software.
+4.1. Puntos de Dolor Recurrentes en el Sector Contable e Industrial
+Se han identificado cuatro problemas de alta frecuencia operacional que afectan la productividad de las empresas contratistas y firmas contables:
+1.	Desfase e Ineficiencia en la Actualización Manual de Tasas del BCV: El personal administrativo dedica múltiples horas al mes a la búsqueda, transcripción y verificación manual de los avisos del Banco Central de Venezuela sobre tasas activas y promedio. Este proceso manual ralentiza la emisión de liquidaciones e introduce errores en el cálculo de intereses del Art. 143 de la LOTTT.
+2.	Objeciones en Auditorías Laborales por Falta de Memoria de Cálculo Transparente: La escasa claridad gráfica de los finiquitos emitidos por software legacy origina el rechazo de expedientes en las inspecciones del trabajo y departamentos de relaciones laborales petroleras. Los usuarios demandan una solución que transparente los pasos matemáticos aplicados para fundamentar la selección de la Garantía o la Retroactividad.
+3.	Ausencia de un Portal Multi-Cliente para Firmas Contables: Las firmas de contabilidad que gestionan la nómina de varias contratistas petroleras carecen de una plataforma multi-inquilino (multi-tenant) centralizada en la nube que permita a sus clientes cargar datos de egreso y consultar pre-liquidaciones en tiempo real sin recurrir al envío de archivos por correo electrónico.
+4.	Complejidad en la Presentación de Expresiones Monetarias Indexadas: La dinámica operativa requiere visualizar los importes en Bolívares oficiales junto a su equivalencia o indexación en divisas conforme a convenios internos, garantizando la conversión exacta a la tasa de cambio oficial del BCV del día de emisión.
+4.2. Matriz de Hallazgos Clave para el Posicionamiento de Mercado
+Para desplazar de forma definitiva las hojas de cálculo caseras e imponerse en el mercado frente a los sistemas tradicionales, la aplicación debe erigirse sobre cinco pilares diferenciadores:
+1.	Sincronización Automatizada de Indicadores Económicos (API BCV): Conexión directa mediante servicios web para actualizar dinámicamente la tabla histórica de tasas de interés y tipos de cambio oficiales del BCV, suprimiendo la carga manual.
+2.	Motor de Doble Cálculo Autoejecutable Art. 142 LOTTT: Algoritmo de cómputo que procesa en paralelo la Garantía Trimestral más Intereses frente a la Retroactividad, adjuntando una memoria de cálculo auditable al recibo de pago.
+3.	Plantillas Preconfiguradas de la Convención Colectiva Petrolera: Base de datos maestra con los códigos de cargo, salarios básicos de tabulador y alícuotas contractuales de utilidades y bono vacacional de la industria energética.
+4.	Generación de Formatos Auditables con Firma y Huella Dactilar: Emisión en formato PDF de finiquitos homologados ante PDVSA/MINTRA, dotados de marcas de agua de seguridad, código QR de validación y recuadro formal para la captura del pulgar derecho.
+5.	Arquitectura Cloud Multi-Inquilino (Multi-Tenant): Infraestructura web segura que habilita a las firmas contables la administración independiente de múltiples empresas contratistas, disponiendo de perfiles de acceso definidos para administradores, analistas y clientes.
+Estos requerimientos de mercado y pilares de innovación constituyen la especificación funcional que guiará el diseño UI/UX y la construcción técnica de la plataforma.
+5. Requerimientos Funcionales y Arquitectura de Interfaz para el Prototipado de la App "Prestaciones Sociales Contratistas Petrolera Venezuela"
+La presente sección define la hoja de ruta técnica y de diseño para los equipos de ingeniería de software e interfaz UI/UX. Cada módulo especificado traduce las exigencias jurídicas, los requerimientos de precisión numérica y los hallazgos de usuario en componentes interactivos orientados a asegurar una experiencia operacional intuitiva, auditable y de alto rendimiento.
+La plataforma denominada Prestaciones Sociales Contratistas Petrolera Venezuela se construirá como una aplicación web SaaS (Software as a Service) accesible desde navegadores modernos, estructurada sobre una arquitectura cloud segura.
+5.1. Módulo Paramétrico y Asistente de Liquidación Paso a Paso (Wizard UI)
+El flujo de trabajo principal para el procesamiento de egresos se organizará mediante un Asistente de Liquidación (Wizard UI), el cual guía la ingesta de datos a través de cuatro etapas secuenciales para garantizar la completitud de la información:
+•	Paso 1: Datos del Contrato:
+o	Selectores desplegables para la parametrización de la Empresa Contratista (Razón Social y RIF).
+o	Ingreso del Número de Contrato homologado con PDVSA / Pequiven y denominación de la Obra.
+•	Paso 2: Datos del Trabajador:
+o	Campos filiatorios: Cédula de Identidad, Nombres y Apellidos.
+o	Selector parametrizado del Cargo según el Tabulador CCP (con autocompletado del nivel salarial y salario básico diario).
+o	Selección del régimen de guardia (5x2, 1x1, 7x7, 2x4, 3x6, 5x10) e ingreso de la alícuota de Tiempo de Viaje (TV) para la conformación del Salario Normal.
+•	Paso 3: Cronología Laboral:
+o	Selectores de fecha: Fecha de Ingreso y Fecha de Egreso (culminación de contrato).
+o	Determinación automatizada e instantánea en pantalla del tiempo de servicio expresado en Años, Meses y Días.
+•	Paso 4: Historial Salarial y Cálculo de Alícuotas:
+o	Matriz para la carga de salarios devengados mes a mes (base de garantía trimestral) o del último salario integral devengado.
+o	Cómputo automatizado de las alícuotas diarias de utilidades y bono vacacional según la CCP.
+Módulo Paramétrico de Respaldos: Componente de administración global que permite la sincronización en un clic de las tasas de interés activas/promedio del BCV vía API y la edición controlada del tabulador salarial petrolero.
+5.2. Panel de Comparación Inteligente, Generador de PDF y Portal Multi-Cliente
+La aplicación incorporará tres componentes avanzados de visualización y control operativo:
+1.	Panel de Comparación Inteligente Art. 142 LOTTT:
+o	Interfaz gráfica compuesta por dos tarjetas o contenedores informativos dispuestos en paralelo:
+	Tarjeta A (Garantía Trimestral): Desglosa los días depositados, el salario integral de cada período y la sumatoria de intereses del Art. 143 LOTTT.
+	Tarjeta B (Retroactividad): Expone el cálculo a razón de 30 días por año de servicio (o fracción > 6 meses) multiplicados por el último salario integral devengado.
+o	Indicador Gráfico Destacado (Badge): Resaltador visual de alta visibilidad que señala automáticamente cuál de las dos tarjetas corresponde al monto legalmente aplicable por resultar más favorable al trabajador (Literal D).
+2.	Visualizador y Exportador de Recibos PDF:
+o	Motor de renderizado interactivo para previsualización del recibo previo a su emisión formal.
+o	Exportación en formato PDF con el membrete corporativo de la contratista, marcas de agua de seguridad que certifican la integridad del cálculo, código QR de verificación de datos y el recuadro normativo reservado para la firma del trabajador y la captura de la huella dactilar del pulgar derecho.
+3.	Portal Multi-Cliente para Despachos Contables:
+o	Panel de gestión centralizado que permite a las firmas de ingeniería contable administrar múltiples contratistas petroleras bajo una infraestructura multi-inquilino (multi-tenant).
+o	Esquema de Seguridad Basado en Roles (RBAC): Administrador del Despacho, Contador Analista y Cliente Contratista (acceso restringido a consulta y carga de novedades de personal).
+La presente especificación técnica, funcional y normativa, estructurada y validada conforme a la totalidad del marco legal sustantivo y la jurisprudencia aplicable en la industria petrolera venezolana al 11 de noviembre de 2026, constituye la documentación técnica autorizada para iniciar de forma inmediata el desarrollo de software y el prototipado de interfaz UI/UX de la aplicación Prestaciones Sociales Contratistas Petrolera Venezuela.
+

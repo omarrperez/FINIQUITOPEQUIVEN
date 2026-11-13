@@ -1,0 +1,6 @@
+{
+  "name": "PetroFiniquito Pequiven - Liquidación CCP y LOTTT",
+  "description": "Sistema de cálculo automatizado y base de datos segura para liquidación de prestaciones sociales de contratistas de Pequiven y PDVSA bajo la LOTTT y la Convención Colectiva Petrolera.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
