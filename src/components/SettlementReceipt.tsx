@@ -215,10 +215,11 @@ ____________________________________                  __________________________
 
           <div className="flex flex-wrap items-center gap-2">
             <button
+              type="button"
               onClick={onSyncLiveBCV}
               disabled={bcvSyncState.loading}
               title="Consultar Dólar BCV del día (API) y recalcular este finiquito y todos los expedientes al instante"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-bold text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:bg-amber-400 transition-colors shadow-xs"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-bold text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:bg-amber-400 transition-colors shadow-xs cursor-pointer"
             >
               {bcvSyncState.loading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -228,7 +229,7 @@ ____________________________________                  __________________________
               <span>
                 {bcvSyncState.loading
                   ? 'Actualizando BCV...'
-                  : `Dólar BCV del Día (Bs. ${formatBs(expediente.parametrosSnapshot.tasaCambioBCV_USD, 4)})`}
+                  : `Actualizar Tasa BCV (Bs. ${formatBs(expediente.parametrosSnapshot.tasaCambioBCV_USD, 4)})`}
               </span>
             </button>
 

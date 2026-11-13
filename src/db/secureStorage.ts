@@ -11,9 +11,9 @@ import {
 import { calcularLiquidacion, round2, TASA_BCV_OFICIAL_DEFAULT } from '../utils/calculator';
 
 const STORAGE_KEYS = {
-  EXPEDIENTES: 'petro_expedientes_v7',
-  CONTRATISTAS: 'petro_contratistas_v7',
-  PARAMETROS: 'petro_parametros_v7',
+  EXPEDIENTES: 'petro_expedientes_v8',
+  CONTRATISTAS: 'petro_contratistas_v8',
+  PARAMETROS: 'petro_parametros_v8',
 };
 
 const memoryFallback: {
@@ -28,7 +28,7 @@ const memoryFallback: {
 
 const clearLegacyStorage = () => {
   try {
-    ['v2', 'v3', 'v4', 'v5', 'v6'].forEach((ver) => {
+    ['v2', 'v3', 'v4', 'v5', 'v6', 'v7'].forEach((ver) => {
       localStorage.removeItem(`petro_expedientes_${ver}`);
       localStorage.removeItem(`petro_contratistas_${ver}`);
       localStorage.removeItem(`petro_parametros_${ver}`);

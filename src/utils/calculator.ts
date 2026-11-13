@@ -6,7 +6,7 @@ import {
 } from '../types/settlement';
 import { numeroALetras } from './numberToWords';
 
-export const TASA_BCV_OFICIAL_DEFAULT = 904.4485;
+export const TASA_BCV_OFICIAL_DEFAULT = 911.6243;
 
 /**
  * Redondeo financiero a 2 decimales evitando redondeos intermedios prematuros

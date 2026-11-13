@@ -29,9 +29,35 @@ export default function App() {
     error: null,
   });
 
-  // Load from secure storage on mount
+  // Load from secure storage on mount & silently sync live BCV rate if online
   useEffect(() => {
     loadAllData();
+    let active = true;
+    fetchLiveBCVRate()
+      .then((liveData) => {
+        if (!active) return;
+        const { parametros: updatedParams, expedientes: updatedExps } =
+          secureStorage.applyNewBCVRate(liveData.rate);
+        setParametros(updatedParams);
+        setExpedientes(updatedExps);
+        setActiveExpediente((prev) => {
+          if (!prev) return updatedExps[0] || null;
+          return updatedExps.find((e) => e.id === prev.id) || updatedExps[0] || null;
+        });
+        setBcvSyncState({
+          loading: false,
+          lastSyncedRate: liveData.rate,
+          lastSource: liveData.fuente,
+          lastDate: liveData.fechaActualizacion,
+          error: null,
+        });
+      })
+      .catch(() => {
+        // Offline or blocked: keep local stored BCV rate silently until user requests manual/API update
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const loadAllData = () => {
@@ -82,6 +108,27 @@ export default function App() {
       }));
       return null;
     }
+  };
+
+  const handleApplyManualBCV = (nuevaTasa: number): ParametrosMaestros | null => {
+    if (!Number.isFinite(nuevaTasa) || nuevaTasa <= 0) return null;
+    const tasaNormalizada = Number(nuevaTasa.toFixed(4));
+    const { parametros: updatedParams, expedientes: updatedExps } =
+      secureStorage.applyNewBCVRate(tasaNormalizada);
+    setParametros(updatedParams);
+    setExpedientes(updatedExps);
+    setActiveExpediente((prev) => {
+      if (!prev) return updatedExps[0] || null;
+      return updatedExps.find((e) => e.id === prev.id) || updatedExps[0] || null;
+    });
+    setBcvSyncState({
+      loading: false,
+      lastSyncedRate: tasaNormalizada,
+      lastSource: 'Tasa BCV ingresada manualmente',
+      lastDate: new Date().toISOString(),
+      error: null,
+    });
+    return updatedParams;
   };
 
   const handleNewSettlement = () => {
@@ -180,6 +227,7 @@ export default function App() {
             onNewSettlement={handleNewSettlement}
             onReload={loadAllData}
             onSyncLiveBCV={handleSyncLiveBCV}
+            onApplyManualBCV={handleApplyManualBCV}
             bcvSyncState={bcvSyncState}
           />
         )}

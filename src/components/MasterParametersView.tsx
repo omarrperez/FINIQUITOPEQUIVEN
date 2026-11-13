@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FileSpreadsheet,
   Save,
@@ -40,6 +40,17 @@ export const MasterParametersView: React.FC<MasterParametersViewProps> = ({
   const [tasasBCV, setTasasBCV] = useState<TasaBCV[]>(parametros.tasasBCV);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  useEffect(() => {
+    setSalarioMinimo(parametros.salarioMinimoUrbano);
+    setDiasUtilidades(parametros.diasUtilidadesCCP);
+    setDiasBonoVacacional(parametros.diasBonoVacacionalCCP);
+    setDiasVacacionesAnuales(parametros.diasVacacionesAnualesCCP || 34);
+    setDiasFiniquito(parametros.diasBonificacionFiniquitoCCP);
+    setTasaUSD(parametros.tasaCambioBCV_USD);
+    setTabulador(parametros.tabuladorCargos);
+    setTasasBCV(parametros.tasasBCV);
+  }, [parametros]);
+
   // New Cargo form state
   const [newCodigo, setNewCodigo] = useState('');
   const [newDenominacion, setNewDenominacion] = useState('');
@@ -47,14 +58,30 @@ export const MasterParametersView: React.FC<MasterParametersViewProps> = ({
   const [newSalario, setNewSalario] = useState(300);
 
   const handleSaveAll = () => {
+    const nuevaTasa = Number(tasaUSD) || parametros.tasaCambioBCV_USD;
+    const tasaAnterior = parametros.tasaCambioBCV_USD || 904.4485;
+    const tabuladorActualizado =
+      Math.abs(nuevaTasa - tasaAnterior) > 0.00001
+        ? tabulador.map((cargo) => {
+            if (cargo.id === 'cargo-sisdem-obrero') {
+              return { ...cargo, salarioBasicoDiario: Number((14.0 * nuevaTasa).toFixed(2)) };
+            }
+            if (cargo.id === 'cargo-inspector-siho') {
+              return { ...cargo, salarioBasicoDiario: Number((20.0 * nuevaTasa).toFixed(2)) };
+            }
+            const usdDiario = cargo.salarioBasicoDiario / tasaAnterior;
+            return { ...cargo, salarioBasicoDiario: Number((usdDiario * nuevaTasa).toFixed(2)) };
+          })
+        : tabulador;
+
     const updated: ParametrosMaestros = {
       salarioMinimoUrbano: Number(salarioMinimo),
       diasUtilidadesCCP: Number(diasUtilidades),
       diasBonoVacacionalCCP: Number(diasBonoVacacional),
       diasVacacionesAnualesCCP: Number(diasVacacionesAnuales),
       diasBonificacionFiniquitoCCP: Number(diasFiniquito),
-      tasaCambioBCV_USD: Number(tasaUSD),
-      tabuladorCargos: tabulador,
+      tasaCambioBCV_USD: nuevaTasa,
+      tabuladorCargos: tabuladorActualizado,
       tasasBCV: tasasBCV,
     };
     secureStorage.saveParametros(updated);
@@ -65,7 +92,7 @@ export const MasterParametersView: React.FC<MasterParametersViewProps> = ({
   };
 
   const handleResetDefaults = () => {
-    if (window.confirm('¿Restaurar los parámetros, tabuladores y expedientes a los valores oficiales por defecto (Tasa BCV 904,4485 Bs/USD)?')) {
+    if (window.confirm('¿Restaurar los parámetros, tabuladores y expedientes a los valores oficiales por defecto (Tasa BCV 911,6243 Bs/USD)?')) {
       secureStorage.resetToDefault();
       const def = secureStorage.getParametros();
       setSalarioMinimo(def.salarioMinimoUrbano);
@@ -145,12 +172,13 @@ export const MasterParametersView: React.FC<MasterParametersViewProps> = ({
           </button>
 
           <button
+            type="button"
             onClick={handleSyncBCV}
             disabled={bcvSyncState.loading}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:bg-amber-400 transition-colors shadow-xs"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:bg-amber-400 transition-colors shadow-xs cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${bcvSyncState.loading ? 'animate-spin' : ''}`} />
-            <span>{bcvSyncState.loading ? 'Consultando API BCV...' : 'Dólar BCV del Día (API)'}</span>
+            <span>{bcvSyncState.loading ? 'Actualizando BCV...' : 'Actualizar Tasa BCV (API)'}</span>
           </button>
 
           <button

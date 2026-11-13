@@ -1,6 +1,6 @@
-import { build } from 'vite';
-import react from '@vitejs/plugin-react';
-import tailwindcss from '@tailwindcss/vite';
+// Forzar NODE_ENV=production antes de cargar Vite/React para evitar llamadas jsxDEV en el HTML portable
+process.env.NODE_ENV = 'production';
+
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,11 +12,19 @@ const outDir = path.join(rootDir, '.portable-dist');
 const publicTarget = path.join(rootDir, 'public', 'PetroFiniquito_CRISBAORCA_2009.html');
 
 async function generatePortableHTML() {
-  console.log('Compilando versión portable en un solo archivo HTML...');
+  const { build } = await import('vite');
+  const { default: react } = await import('@vitejs/plugin-react');
+  const { default: tailwindcss } = await import('@tailwindcss/vite');
+
+  console.log('Compilando versión portable en un solo archivo HTML (producción pura)...');
 
   await build({
     configFile: false,
+    mode: 'production',
     root: rootDir,
+    define: {
+      'process.env.NODE_ENV': '"production"',
+    },
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
@@ -58,6 +66,10 @@ async function generatePortableHTML() {
     .join('\n')
     // Prevent any accidental </script> sequence inside bundled libraries from closing the tag early
     .replace(/<\/script>/gi, '<\\/script>');
+
+  if (/\bjsxDEV\b/.test(combinedJS)) {
+    throw new Error('Se detectó jsxDEV en el bundle de producción; abortando para evitar pantalla en blanco.');
+  }
 
   // Strip external stylesheet links and module script tags emitted by Vite
   html = html.replace(/<link[^>]+rel=["']stylesheet["'][^>]*>/gi, '');

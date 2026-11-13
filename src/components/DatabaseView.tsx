@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Search,
   Plus,
@@ -33,6 +33,7 @@ interface DatabaseViewProps {
   onNewSettlement: () => void;
   onReload: () => void;
   onSyncLiveBCV: () => Promise<ParametrosMaestros | null>;
+  onApplyManualBCV: (nuevaTasa: number) => ParametrosMaestros | null;
   bcvSyncState: BCVSyncState;
 }
 
@@ -44,6 +45,7 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
   onNewSettlement,
   onReload,
   onSyncLiveBCV,
+  onApplyManualBCV,
   bcvSyncState,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -55,6 +57,13 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
   const [recalcSuccess, setRecalcSuccess] = useState(false);
   const [downloadingHTML, setDownloadingHTML] = useState(false);
   const [htmlDownloadError, setHtmlDownloadError] = useState<string | null>(null);
+  const [manualRateInput, setManualRateInput] = useState<string>(
+    String(parametros.tasaCambioBCV_USD)
+  );
+
+  useEffect(() => {
+    setManualRateInput(String(parametros.tasaCambioBCV_USD));
+  }, [parametros.tasaCambioBCV_USD]);
 
   // Filtered expedientes
   const filtered = expedientes.filter((exp) => {
@@ -180,9 +189,26 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
     }
   };
 
+  const handleApplyManualRate = () => {
+    const parsed = parseFloat(manualRateInput.replace(',', '.'));
+    if (!Number.isFinite(parsed) || parsed <= 0) return;
+    onApplyManualBCV(parsed);
+    setRecalcSuccess(true);
+    setTimeout(() => setRecalcSuccess(false), 3500);
+  };
+
   const handleRecalculateAll = () => {
-    secureStorage.recalcularTodosExpedientes(parametros);
-    onReload();
+    const parsed = parseFloat(manualRateInput.replace(',', '.'));
+    if (
+      Number.isFinite(parsed) &&
+      parsed > 0 &&
+      Math.abs(parsed - parametros.tasaCambioBCV_USD) > 0.00001
+    ) {
+      onApplyManualBCV(parsed);
+    } else {
+      secureStorage.recalcularTodosExpedientes(parametros);
+      onReload();
+    }
     setRecalcSuccess(true);
     setTimeout(() => setRecalcSuccess(false), 3500);
   };
@@ -191,7 +217,9 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
     setDownloadingHTML(true);
     setHtmlDownloadError(null);
     try {
-      const response = await fetch('/PetroFiniquito_CRISBAORCA_2009.html', { cache: 'no-store' });
+      const response = await fetch(`/PetroFiniquito_CRISBAORCA_2009.html?v=${Date.now()}`, {
+        cache: 'no-store',
+      });
       if (!response.ok) {
         throw new Error('No se pudo obtener el archivo HTML portable del servidor.');
       }
@@ -287,8 +315,34 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 shrink-0">
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5">
+            <span className="text-2xs font-semibold text-slate-600 whitespace-nowrap">
+              Tasa BCV:
+            </span>
+            <input
+              type="number"
+              step="0.0001"
+              value={manualRateInput}
+              onChange={(e) => setManualRateInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleApplyManualRate();
+              }}
+              aria-label="Tasa BCV manual en Bolívares por Dólar"
+              className="w-24 text-sm font-mono font-bold text-blue-900 bg-white border border-slate-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-600 focus:outline-hidden"
+            />
+            <button
+              type="button"
+              onClick={handleApplyManualRate}
+              title="Aplicar esta tasa manual y recalcular los 5 finiquitos al instante"
+              className="px-2.5 py-1 text-xs font-bold text-blue-800 bg-blue-100 hover:bg-blue-200 rounded transition-colors cursor-pointer"
+            >
+              Aplicar
+            </button>
+          </div>
+
           <button
+            type="button"
             onClick={onSyncLiveBCV}
             disabled={bcvSyncState.loading}
             title="Consultar el precio oficial del Dólar BCV del día en tiempo real (API) y recalcular todos los finiquitos"
@@ -301,12 +355,13 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
             )}
             <span>
               {bcvSyncState.loading
-                ? 'Consultando BCV...'
-                : `Dólar BCV del Día (API)`}
+                ? 'Actualizando BCV...'
+                : 'Actualizar Tasa BCV (API)'}
             </span>
           </button>
 
           <button
+            type="button"
             onClick={handleRecalculateAll}
             title="Recalcular todos los finiquitos de CRISBAORCA 2009, C.A. con los parámetros y tasa BCV vigentes"
             className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 active:scale-[0.99] transition-all shadow-sm ring-2 ring-emerald-600/20 cursor-pointer"
@@ -339,10 +394,7 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
             </span>
           </div>
           <span className="text-2xs font-mono text-emerald-800 shrink-0">
-            Fuente: {bcvSyncState.lastSource}
-            {bcvSyncState.lastDate
-              ? ` · Act: ${new Date(bcvSyncState.lastDate).toLocaleDateString('es-VE')}`
-              : ''}
+            Fuente: {bcvSyncState.lastSource} · Verificado: {new Date().toLocaleTimeString('es-VE')}
           </span>
         </div>
       )}
